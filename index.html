@@ -829,8 +829,18 @@ body {
     <button class="pill" data-filter="ready">Ready Now</button>
     <button class="pill" data-filter="close">Almost There</button>
     <button class="pill" data-filter="need">Need a Trip</button>
+    <button class="pill" data-filter="cousins">Cousin's</button>
   </div>
 
+
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
+    <span style="font-size:0.74rem;color:#9b9180;letter-spacing:0.08em;text-transform:uppercase;font-weight:200;">Sort</span>
+    <select id="meal-sort" style="background:#efeae0;border:none;border-radius:8px;padding:6px 10px;font-family:inherit;font-size:0.82rem;color:#2a2722;outline:none;cursor:pointer;">
+      <option value="status">By readiness</option>
+      <option value="alpha">A to Z</option>
+      <option value="recent">Recently added</option>
+    </select>
+  </div>
   <!-- Garden herbs -->
   <div class="garden" id="garden-callout">
     <div class="garden-icon">🌿</div>
@@ -877,8 +887,9 @@ body {
   </div>
 
   <div class="skipped-section" id="skipped-section">
-    <div class="skipped-head">
-      <div class="skipped-title">Skipped Items</div>
+    <div class="skipped-head" id="skipped-toggle" style="cursor:pointer;user-select:none;">
+      <div class="skipped-title">Skipped Items <span id="skipped-count" style="font-weight:200;font-size:0.68rem;color:#9b9180;"></span></div>
+      <svg id="skipped-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div id="skipped-items"></div>
   </div>
@@ -919,6 +930,19 @@ body {
   </div>
 
   <div id="recipes-content"></div>
+</div>
+
+
+<!-- ========== COUSINS VIEW ========== -->
+<div class="view" id="view-cousins">
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/>
+      <path d="m21 21-4.3-4.3"/>
+    </svg>
+    <input type="text" class="search" id="cousins-search" placeholder="Search cousin's meals...">
+  </div>
+  <div id="cousins-content"></div>
 </div>
 
 <!-- ========== RECIPE/MEAL DETAIL MODAL ========== -->
@@ -1007,9 +1031,19 @@ body {
     </svg>
     <span class="nav-btn-label">Recipes</span>
   </button>
+  <button class="nav-btn" data-view="cousins">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+    <span class="nav-btn-label">Cousin's</span>
+  </button>
 </nav>
 
 <script>
+
 // ============================================================
 // CONFIG & DATA
 // ============================================================
@@ -1017,6 +1051,26 @@ const BIN_ID = "6a3ee0a3da38895dfe048d4a";
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 const GARDEN_HERBS = ["basil","dill","sage","thyme","cilantro","chive","parsley","lavender"];
+
+// Normalize for fuzzy matching
+function normalizeItem(s) {
+  return s.toLowerCase().replace(/\s*\(.*?\)/g, '').trim();
+}
+
+// Check if an ingredient is covered by current inventory (fuzzy)
+function inInventory(ingredient) {
+  const needle = normalizeItem(ingredient);
+  for (const herb of GARDEN_HERBS) {
+    if ((needle === herb || needle.startsWith(herb + ' ') || needle.includes(herb)) && !needle.includes('not ready')) return true;
+  }
+  for (const item of state.inInventory) {
+    const haystack = normalizeItem(item);
+    if (haystack === needle) return true;
+    if (haystack.includes(needle)) return true;
+    if (needle.includes(haystack) && haystack.length >= 4) return true;
+  }
+  return false;
+}
 const INITIAL_INVENTORY = ["Basil","Cilantro","Dill","Sage","Chive","Thyme","Parsley","Lavender (not ready)","Pepper jack cheese","Goldfish","Mixed nuts","Granola bar","Hard candies","Eggs","Milk","Coffee creamer","Butter","Heavy cream","Cottage cheese","String cheese","Shredded Colby Jack","Cotija cheese","Sliced white cheese","Lemongrass (1 stalk)","Lime (half)","Cucumber","Mushrooms","Lettuce (rough)","Lettuce (fresher head)","Bell peppers","Carrots","Biscuits","Rotisserie chicken","Deli ham","Sparkling water","Cold brew","Beer","Frozen pizza","Frozen vegetables","Ice cream","Frozen waffles","Homemade chicken broth (6 cups)","Frozen fruit","Ground beef","Chicken breasts","Salmon fillets","Bacon","Italian sausage","Pork chops","Frozen shrimp","All-purpose flour","Bread flour","Russet potatoes (bag)","2 lbs limes","Olive oil","Vegetable oil","Sesame oil","Rice","Pasta","Elbow macaroni","Spaghetti","Campanelle noodles","Tapioca pearls","Active dry yeast","Instant yeast","Baking powder","Baking soda","Sugar","Brown sugar","Honey","Apple cider vinegar","Balsamic vinegar","White vinegar","Rice vinegar","A1 steak sauce","Sriracha","Cholula","Sambal oelek","Mayonnaise","Dijon mustard","Yellow mustard","Ketchup","BBQ sauce","Thai sweet chili sauce","Tahini","Crushed tomatoes","Diced tomatoes","Tomato paste","Black beans (cans)","Refried beans","Corn (cans)","Tortilla chips","Triscuits","Saltines","Granola","Oatmeal","Cereal","Bread crumbs","Panko","Stove Top stuffing mix","Worcestershire sauce","Anchovy paste","Furikake","Everything bagel seasoning","Chili crunch","Sesame seeds","Peanut butter","Jam","Salt","Kosher salt","Black pepper","Garlic powder","Onion powder","Paprika","Smoked paprika","Cayenne pepper","Red pepper flakes","Chili powder","Cumin","Oregano","Italian seasoning","Bay leaf","Cinnamon","Nutmeg","Vanilla extract","Tajín","Old Bay","Garam masala (small)","Turmeric (small)"];
 const INVENTORY_LOCATIONS = {"Basil":"Garden","Cilantro":"Garden","Dill":"Garden","Sage":"Garden","Chive":"Garden","Thyme":"Garden","Parsley":"Garden","Lavender (not ready)":"Garden","Pepper jack cheese":"Mini Fridge","Goldfish":"Mini Fridge","Mixed nuts":"Mini Fridge","Granola bar":"Mini Fridge","Hard candies":"Mini Fridge","Eggs":"Main Fridge - Dairy","Milk":"Main Fridge - Dairy","Coffee creamer":"Main Fridge - Dairy","Butter":"Main Fridge - Dairy","Heavy cream":"Main Fridge - Dairy","Cottage cheese":"Main Fridge - Dairy","String cheese":"Main Fridge - Dairy","Shredded Colby Jack":"Main Fridge - Dairy","Cotija cheese":"Main Fridge - Dairy","Sliced white cheese":"Main Fridge - Dairy","Lemongrass (1 stalk)":"Main Fridge - Produce","Lime (half)":"Main Fridge - Produce","Cucumber":"Main Fridge - Produce","Mushrooms":"Main Fridge - Produce","Lettuce (rough)":"Main Fridge - Produce","Lettuce (fresher head)":"Main Fridge - Produce","Bell peppers":"Main Fridge - Produce","Carrots":"Main Fridge - Produce","Biscuits":"Main Fridge - Deli & Prepared","Rotisserie chicken":"Main Fridge - Deli & Prepared","Deli ham":"Main Fridge - Deli & Prepared","Sparkling water":"Main Fridge - Drinks","Cold brew":"Main Fridge - Drinks","Beer":"Main Fridge - Drinks","Frozen pizza":"Main Freezer","Frozen vegetables":"Main Freezer","Ice cream":"Main Freezer","Frozen waffles":"Main Freezer","Homemade chicken broth (6 cups)":"Outdoor Fridge & Freezer","Frozen fruit":"Outdoor Fridge & Freezer","Ground beef":"Outdoor Fridge & Freezer","Chicken breasts":"Outdoor Fridge & Freezer","Salmon fillets":"Outdoor Fridge & Freezer","Bacon":"Outdoor Fridge & Freezer","Italian sausage":"Outdoor Fridge & Freezer","Pork chops":"Outdoor Fridge & Freezer","Frozen shrimp":"Outdoor Fridge & Freezer","All-purpose flour":"Pantry","Bread flour":"Pantry","Russet potatoes (bag)":"Pantry","2 lbs limes":"Pantry","Olive oil":"Pantry","Vegetable oil":"Pantry","Sesame oil":"Pantry","Rice":"Pantry","Pasta":"Pantry","Elbow macaroni":"Pantry","Spaghetti":"Pantry","Campanelle noodles":"Pantry","Tapioca pearls":"Pantry","Active dry yeast":"Pantry","Instant yeast":"Pantry","Baking powder":"Pantry","Baking soda":"Pantry","Sugar":"Pantry","Brown sugar":"Pantry","Honey":"Pantry","Apple cider vinegar":"Pantry","Balsamic vinegar":"Pantry","White vinegar":"Pantry","Rice vinegar":"Pantry","A1 steak sauce":"Pantry","Sriracha":"Pantry","Cholula":"Pantry","Sambal oelek":"Pantry","Mayonnaise":"Pantry","Dijon mustard":"Pantry","Yellow mustard":"Pantry","Ketchup":"Pantry","BBQ sauce":"Pantry","Thai sweet chili sauce":"Pantry","Tahini":"Pantry","Crushed tomatoes":"Pantry","Diced tomatoes":"Pantry","Tomato paste":"Pantry","Black beans (cans)":"Pantry","Refried beans":"Pantry","Corn (cans)":"Pantry","Tortilla chips":"Pantry","Triscuits":"Pantry","Saltines":"Pantry","Granola":"Pantry","Oatmeal":"Pantry","Cereal":"Pantry","Bread crumbs":"Pantry","Panko":"Pantry","Stove Top stuffing mix":"Pantry","Worcestershire sauce":"Pantry","Anchovy paste":"Pantry","Furikake":"Pantry","Everything bagel seasoning":"Pantry","Chili crunch":"Pantry","Sesame seeds":"Pantry","Peanut butter":"Pantry","Jam":"Pantry","Salt":"Seasonings & Spices","Kosher salt":"Seasonings & Spices","Black pepper":"Seasonings & Spices","Garlic powder":"Seasonings & Spices","Onion powder":"Seasonings & Spices","Paprika":"Seasonings & Spices","Smoked paprika":"Seasonings & Spices","Cayenne pepper":"Seasonings & Spices","Red pepper flakes":"Seasonings & Spices","Chili powder":"Seasonings & Spices","Cumin":"Seasonings & Spices","Oregano":"Seasonings & Spices","Italian seasoning":"Seasonings & Spices","Bay leaf":"Seasonings & Spices","Cinnamon":"Seasonings & Spices","Nutmeg":"Seasonings & Spices","Vanilla extract":"Seasonings & Spices","Tajín":"Seasonings & Spices","Old Bay":"Seasonings & Spices","Garam masala (small)":"Seasonings & Spices","Turmeric (small)":"Seasonings & Spices"};
 const INITIAL_SHOPPING = ["Garlic","Limes","Lemons","Fresh jalapeño","Avocado","Mushrooms","Celery","Lemongrass paste","Green onion","Fresh potatoes","Rotisserie chicken","Shaved deli meat","Ciabatta buns","Ground beef","Sour cream","Block of mild cheddar","Parmesan","Canned kidney beans","Chunky spicy salsa","Chili seasoning packet","Beef broth","Capers","Soy sauce","Tahini","Water chestnuts","Beef jerky","Pull-apart Twizzlers","Eggs","Butter","Vanilla extract","Bananas","Avocado oil","Agave nectar"];
@@ -1034,9 +1088,12 @@ let state = {
   inInventory: [...INITIAL_INVENTORY],
   inShopping: [...INITIAL_SHOPPING],
   skipped: [],
-  custom: {}, // { itemName: { location, section, note } }
-  meta: { lastUpdated: null, version: 1 }
+  custom: {}, // { itemName: { location, section, note, addedAt } }
+  meta: { lastUpdated: null, version: 2 }
 };
+
+let currentSort = "status";
+let skippedOpen = false;
 
 let currentFilter = "all";
 let currentSearch = "";
@@ -1172,6 +1229,7 @@ function addCustomShoppingItem(name, section, note) {
     state.inShopping.push(trimmed);
     state.custom[trimmed] = state.custom[trimmed] || {};
     state.custom[trimmed].section = section;
+    state.custom[trimmed].addedAt = Date.now();
     if (note) state.custom[trimmed].note = note;
   }
   saveAndRender();
@@ -1216,13 +1274,38 @@ function getNote(item) {
 }
 
 function getMealStatus(meal) {
-  const inv = state.inInventory;
-  const missing = (meal.ingredients || []).filter(ing => !inv.includes(ing));
-  const extraNeeds = (meal._needs || "").split(",").map(s => s.trim()).filter(s => s).length;
-  const totalMissing = missing.length + extraNeeds;
+  const missing = (meal.ingredients || []).filter(ing => !inInventory(ing));
+  const extraNeedsRaw = (meal._needs || "").split(",").map(s => s.trim()).filter(s => s);
+  const extraNeeds = extraNeedsRaw.filter(s => !inInventory(s));
+  const totalMissing = missing.length + extraNeeds.length;
   if (totalMissing === 0) return { status: "ready", missing: [], extraNeeds: [] };
-  if (totalMissing <= 2) return { status: "close", missing, extraNeeds: (meal._needs || "").split(",").map(s => s.trim()).filter(s => s) };
-  return { status: "need", missing, extraNeeds: (meal._needs || "").split(",").map(s => s.trim()).filter(s => s) };
+  if (totalMissing <= 2) return { status: "close", missing, extraNeeds };
+  return { status: "need", missing, extraNeeds };
+}
+
+function getAddedAt(itemOrMeal) {
+  if (typeof itemOrMeal === 'string') {
+    return (state.custom[itemOrMeal] && state.custom[itemOrMeal].addedAt) ? state.custom[itemOrMeal].addedAt : 0;
+  }
+  return 0;
+}
+
+// Find where an ingredient lives
+function findIngredientLocation(ing) {
+  const needle = normalizeItem(ing);
+  for (const item of state.inInventory) {
+    const h = normalizeItem(item);
+    if (h === needle || h.includes(needle) || (needle.includes(h) && h.length >= 4)) return { type: 'inventory', item };
+  }
+  for (const item of state.inShopping) {
+    const h = normalizeItem(item);
+    if (h === needle || h.includes(needle) || (needle.includes(h) && h.length >= 4)) return { type: 'shopping', item };
+  }
+  for (const item of state.skipped) {
+    const h = normalizeItem(item);
+    if (h === needle || h.includes(needle) || (needle.includes(h) && h.length >= 4)) return { type: 'skipped', item };
+  }
+  return null;
 }
 
 function getMealNote(meal) {
@@ -1254,48 +1337,69 @@ function renderHome() {
     statusInfo: getMealStatus(m)
   }));
   
-  // Apply search filter
+  // Apply search and filter
   const filtered = mealsWithStatus.filter(({ meal }) => {
-    if (!matchesSearch(meal.name + " " + (meal.ingredients || []).join(" ") + " " + (meal._needs || ""), currentSearch)) return false;
+    const searchStr = meal.name + " " + (meal.ingredients || []).join(" ") + " " + (meal._needs || "");
+    if (!matchesSearch(searchStr, currentSearch)) return false;
     if (currentFilter === "all") return true;
+    if (currentFilter === "cousins") return meal.source === "cousins";
     return getMealStatus(meal).status === currentFilter;
   });
+
+  // Sort
+  const sortMode = (typeof currentSort !== "undefined") ? currentSort : "status";
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    if (sortMode === "alpha") return a.meal.name.localeCompare(b.meal.name);
+    if (sortMode === "recent") {
+      const at = getAddedAt(a.meal.name), bt = getAddedAt(b.meal.name);
+      if (at && bt) return bt - at;
+      if (at) return -1;
+      if (bt) return 1;
+      return a.meal.name.localeCompare(b.meal.name);
+    }
+    const order = { ready: 0, close: 1, need: 2 };
+    return (order[a.statusInfo.status] - order[b.statusInfo.status]) || a.meal.name.localeCompare(b.meal.name);
+  });
+
+  const ready = sortedFiltered.filter(m => m.statusInfo.status === "ready");
+  const close = sortedFiltered.filter(m => m.statusInfo.status === "close");
+  const need = sortedFiltered.filter(m => m.statusInfo.status === "need");
   
-  // Group
-  const ready = filtered.filter(m => m.statusInfo.status === "ready");
-  const close = filtered.filter(m => m.statusInfo.status === "close");
-  const need = filtered.filter(m => m.statusInfo.status === "need");
-  
-  // Worth Grabbing: meals that are missing only 1-2 ingredients NOT already in shopping list
+  // Worth Grabbing: items NOT in inventory or shopping that unlock close meals
   const allClose = mealsWithStatus.filter(m => m.statusInfo.status === "close");
   const worthGrabbingItems = new Map();
   allClose.forEach(({ meal, statusInfo }) => {
     const items = [...statusInfo.missing, ...statusInfo.extraNeeds];
     items.forEach(item => {
-      const lower = item.toLowerCase();
-      const inShoppingAlready = state.inShopping.some(s => s.toLowerCase() === lower);
-      if (!inShoppingAlready) {
+      const lower = normalizeItem(item);
+      const inShoppingAlready = state.inShopping.some(s => normalizeItem(s) === lower || normalizeItem(s).includes(lower) || lower.includes(normalizeItem(s)));
+      const inInventoryAlready = inInventory(item);
+      if (!inShoppingAlready && !inInventoryAlready) {
         if (!worthGrabbingItems.has(lower)) worthGrabbingItems.set(lower, { item: item, meals: [] });
         worthGrabbingItems.get(lower).meals.push(meal.name);
       }
     });
   });
   
-  // Top ingredients by # of meals unlocked
   const topWorth = [...worthGrabbingItems.values()]
-    .filter(v => v.meals.length >= 2)
     .sort((a,b) => b.meals.length - a.meals.length)
-    .slice(0, 5);
+    .slice(0, 6);
   
   const worthEl = document.getElementById("worth-grabbing");
   if (topWorth.length && currentFilter === "all" && !currentSearch) {
     worthEl.classList.remove("hidden");
     document.getElementById("worth-items").innerHTML = topWorth.map(w => `
-      <div class="worth-item">
-        <span>${escapeHtml(w.item)}</span>
+      <div class="worth-item" style="cursor:pointer;" data-item="${escapeAttr(w.item)}">
+        <span style="text-decoration:underline;text-decoration-style:dotted;">${escapeHtml(w.item)}</span>
         <span class="worth-need">unlocks ${w.meals.length} meals</span>
       </div>
     `).join("");
+    document.getElementById("worth-items").querySelectorAll(".worth-item").forEach(el => {
+      el.addEventListener("click", () => {
+        addCustomShoppingItem(el.dataset.item, "Produce & Fresh", "");
+        showSync("Added to shopping list", false);
+      });
+    });
   } else {
     worthEl.classList.add("hidden");
   }
@@ -1307,7 +1411,7 @@ function renderHome() {
   const container = document.getElementById("home-content");
   const empty = document.getElementById("home-empty");
   
-  if (filtered.length === 0) {
+  if (sortedFiltered.length === 0) {
     container.innerHTML = "";
     empty.classList.remove("hidden");
     return;
@@ -1315,9 +1419,13 @@ function renderHome() {
   empty.classList.add("hidden");
   
   let html = "";
-  if (ready.length) html += renderMealSection("Ready Now", "make today", ready);
-  if (close.length) html += renderMealSection("Almost There", "1-2 items away", close);
-  if (need.length) html += renderMealSection("Need a Trip", "shop first", need);
+  if (sortMode === "status") {
+    if (ready.length) html += renderMealSection("Ready Now", "make today", ready);
+    if (close.length) html += renderMealSection("Almost There", "1-2 items away", close);
+    if (need.length) html += renderMealSection("Need a Trip", "shop first", need);
+  } else {
+    html += renderMealSection("All Meals", sortedFiltered.length + " meals", sortedFiltered);
+  }
   
   container.innerHTML = html;
   
@@ -1454,16 +1562,24 @@ function renderShoppingItem(item) {
 
 function renderSkipped() {
   const el = document.getElementById("skipped-items");
-  if (!state.skipped.length) {
-    el.innerHTML = `<div class="skipped-empty">Nothing skipped.</div>`;
-    return;
-  }
-  el.innerHTML = state.skipped.map(item => `
-    <div class="skipped-item">
-      <span>${escapeHtml(item)}</span>
-      <button class="action-btn" data-item="${escapeAttr(item)}">Bring back</button>
-    </div>
-  `).join("");
+  const countEl = document.getElementById("skipped-count");
+  const chevron = document.getElementById("skipped-chevron");
+  if (countEl) countEl.textContent = state.skipped.length ? `(${state.skipped.length})` : "";
+
+  const inner = state.skipped.length
+    ? state.skipped.map(item => `
+        <div class="skipped-item">
+          <span>${escapeHtml(item)}</span>
+          <button class="action-btn" data-item="${escapeAttr(item)}">Bring back</button>
+        </div>`).join("")
+    : `<div class="skipped-empty">Nothing skipped.</div>`;
+
+  el.innerHTML = inner;
+  el.style.maxHeight = skippedOpen ? "2000px" : "0";
+  el.style.overflow = "hidden";
+  el.style.transition = "max-height 0.3s ease";
+  if (chevron) chevron.style.transform = skippedOpen ? "rotate(180deg)" : "rotate(0deg)";
+
   el.querySelectorAll(".action-btn").forEach(b => {
     b.addEventListener("click", () => unskipItem(b.dataset.item));
   });
@@ -1513,6 +1629,7 @@ function renderInventory() {
     el.addEventListener("click", e => {
       e.stopPropagation();
       const item = el.dataset.item;
+      el.classList.remove("checked");
       el.closest(".list-item").classList.add("checking");
       setTimeout(() => moveToShopping(item), 200);
     });
@@ -1528,7 +1645,7 @@ function renderInventory() {
 function renderInventoryItem(item) {
   return `
     <div class="list-item">
-      <button class="checkbox" data-item="${escapeAttr(item)}" aria-label="Remove from inventory">
+      <button class="checkbox checked" data-item="${escapeAttr(item)}" aria-label="Remove from inventory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
@@ -1593,7 +1710,11 @@ function openMealDetail(mealName) {
     html += `<div class="meal-detail-needs" style="background:#d6ddb7"><div class="meal-detail-needs-label" style="color:#4d5a2e">Ready to Cook</div><div class="meal-detail-needs-list">All ingredients on hand.</div></div>`;
   } else if (statusInfo.status === "close" || statusInfo.status === "need") {
     const missing = [...statusInfo.missing, ...statusInfo.extraNeeds];
-    html += `<div class="meal-detail-needs"><div class="meal-detail-needs-label">Missing</div><div class="meal-detail-needs-list">${missing.map(m => escapeHtml(m)).join(", ")}</div></div>`;
+    html += `<div class="meal-detail-needs"><div class="meal-detail-needs-label">Missing</div><div class="meal-detail-needs-list">${missing.map(m => {
+      const loc = findIngredientLocation(m);
+      const badge = loc ? ` <span style="font-size:0.65rem;color:#6b6557;background:#ece6d8;padding:1px 6px;border-radius:100px;">${loc.type}</span>` : ` <span style="font-size:0.65rem;color:#9b9180;background:#f3ede1;padding:1px 6px;border-radius:100px;">not tracked</span>`;
+      return `<span class="ing-link" data-ing="${escapeAttr(m)}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;">${escapeHtml(m)}</span>${badge}`;
+    }).join(", ")}</div></div>`;
   }
   
   // Recipe content
@@ -1606,6 +1727,23 @@ function openMealDetail(mealName) {
   html += `</div>`;
   document.getElementById("modal-body").innerHTML = html;
   document.getElementById("modal-overlay").classList.add("open");
+
+  // Wire ingredient links
+  document.getElementById("modal-body").querySelectorAll(".ing-link").forEach(el => {
+    el.addEventListener("click", () => {
+      const ing = el.dataset.ing;
+      const loc = findIngredientLocation(ing);
+      if (loc) {
+        closeModal();
+        if (loc.type === "inventory") switchView("inventory");
+        else if (loc.type === "shopping") switchView("shopping");
+        else if (loc.type === "skipped") { switchView("shopping"); skippedOpen = true; renderShopping(); }
+      } else {
+        addCustomShoppingItem(ing, "Produce & Fresh", "");
+        showSync("Added to shopping list", false);
+      }
+    });
+  });
 }
 
 function openRecipeDetail(recipeKey) {
@@ -1614,44 +1752,69 @@ function openRecipeDetail(recipeKey) {
   let html = `<div class="recipe-detail">`;
   if (recipe.source) html += `<div class="recipe-source">${escapeHtml(recipe.source)}</div>`;
   html += `<div class="recipe-title">${escapeHtml(recipe.title)}</div>`;
-  html += renderRecipeContent(recipe);
+  if (recipe.url) html += `<a href="${escapeAttr(recipe.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-bottom:14px;font-size:0.82rem;color:#6b6557;text-decoration:underline;">View original recipe ↗</a>`;
+  html += renderRecipeContent(recipe, true);
   html += `</div>`;
   document.getElementById("modal-body").innerHTML = html;
   document.getElementById("modal-overlay").classList.add("open");
+
+  // Wire clickable ingredients
+  document.getElementById("modal-body").querySelectorAll(".recipe-ing-link").forEach(el => {
+    el.addEventListener("click", () => {
+      const ing = el.dataset.ing;
+      const loc = findIngredientLocation(ing);
+      if (loc) {
+        closeModal();
+        if (loc.type === "inventory") switchView("inventory");
+        else if (loc.type === "shopping") switchView("shopping");
+        else if (loc.type === "skipped") { switchView("shopping"); skippedOpen = true; renderShopping(); }
+      } else {
+        addCustomShoppingItem(ing, "Produce & Fresh", "");
+        showSync("Added to shopping list", false);
+      }
+    });
+  });
 }
 
-function renderRecipeContent(recipe) {
+function renderRecipeContent(recipe, clickableIngs = false) {
   let html = "";
-  
+
   if (recipe.servings || recipe.time) {
     html += `<div class="recipe-meta">`;
     if (recipe.servings) html += `<div class="recipe-meta-item"><div class="recipe-meta-label">Serves</div><div class="recipe-meta-value">${escapeHtml(String(recipe.servings))}</div></div>`;
     if (recipe.time) html += `<div class="recipe-meta-item"><div class="recipe-meta-label">Time</div><div class="recipe-meta-value">${escapeHtml(recipe.time)}</div></div>`;
     html += `</div>`;
   }
-  
-  // Ingredients
+
+  function renderIng(ingStr) {
+    if (!clickableIngs) return `<li>${escapeHtml(ingStr)}</li>`;
+    const loc = findIngredientLocation(ingStr);
+    const dot = loc
+      ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${loc.type === "inventory" ? "#7a9940" : loc.type === "shopping" ? "#b08560" : "#9b9180"};margin-right:6px;flex-shrink:0;"></span>`
+      : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ddd6c5;margin-right:6px;flex-shrink:0;"></span>`;
+    const cls = loc ? `class="recipe-ing-link" data-ing="${escapeAttr(ingStr)}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;"` : "";
+    return `<li style="display:flex;align-items:center;">${dot}<span ${cls}>${escapeHtml(ingStr)}</span></li>`;
+  }
+
   html += `<div class="recipe-section-label">Ingredients</div>`;
   if (recipe.sections) {
     recipe.sections.forEach(s => {
       if (s.label) html += `<div class="recipe-section-sublabel">${escapeHtml(s.label)}</div>`;
-      html += `<ul class="recipe-ingredients">${s.ingredients.map(i => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+      html += `<ul class="recipe-ingredients">${s.ingredients.map(renderIng).join("")}</ul>`;
     });
   } else if (recipe.ingredients) {
-    html += `<ul class="recipe-ingredients">${recipe.ingredients.map(i => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+    html += `<ul class="recipe-ingredients">${recipe.ingredients.map(renderIng).join("")}</ul>`;
   }
-  
-  // Steps
+
   if (recipe.steps && recipe.steps.length) {
     html += `<div class="recipe-section-label">Steps</div>`;
     html += `<ol class="recipe-steps">${recipe.steps.map(s => `<li>${escapeHtml(s)}</li>`).join("")}</ol>`;
   }
-  
-  // Notes
+
   if (recipe.notes && recipe.notes.length) {
     html += `<div class="recipe-notes"><div class="recipe-notes-label">Notes</div><ul>${recipe.notes.map(n => `<li>${escapeHtml(n)}</li>`).join("")}</ul></div>`;
   }
-  
+
   return html;
 }
 
@@ -1694,7 +1857,8 @@ function switchView(view) {
     home: ["Mykala's Kitchen", "What's cooking?"],
     shopping: ["Grocery", "Shopping List"],
     inventory: ["What's on Hand", "Inventory"],
-    recipes: ["Recipe Library", "Browse Recipes"]
+    recipes: ["Recipe Library", "Browse Recipes"],
+    cousins: ["From the Family", "Cousin's Meals"]
   };
   document.getElementById("header-greeting").textContent = titles[view][0];
   document.getElementById("header-title").textContent = titles[view][1];
@@ -1709,6 +1873,35 @@ function renderAll() {
   renderShopping();
   renderInventory();
   renderRecipes();
+  if (typeof renderCousins === "function") renderCousins();
+}
+
+// ============================================================
+// RENDER: COUSINS MEALS
+// ============================================================
+function renderCousins() {
+  const container = document.getElementById("cousins-content");
+  if (!container) return;
+  const search = (document.getElementById("cousins-search") || {}).value || "";
+  const q = search.toLowerCase();
+  const cousins = MEALS.filter(m => m.source === "cousins");
+  const filtered = cousins.filter(m => !q || m.name.toLowerCase().includes(q) || (m._needs || "").toLowerCase().includes(q));
+
+  const withStatus = filtered.map(meal => ({ meal, statusInfo: getMealStatus(meal) }));
+  const ready = withStatus.filter(m => m.statusInfo.status === "ready");
+  const close = withStatus.filter(m => m.statusInfo.status === "close");
+  const need = withStatus.filter(m => m.statusInfo.status === "need");
+
+  let html = "";
+  if (ready.length) html += renderMealSection("Ready Now", "make today", ready);
+  if (close.length) html += renderMealSection("Almost There", "1-2 items away", close);
+  if (need.length) html += renderMealSection("Need a Trip", "shop first", need);
+  if (!html) html = `<div class="empty">No cousin\'s meals match.</div>`;
+
+  container.innerHTML = html;
+  container.querySelectorAll(".meal").forEach(el => {
+    el.addEventListener("click", () => openMealDetail(el.dataset.meal));
+  });
 }
 
 // ============================================================
@@ -1757,6 +1950,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+  // Sort dropdown
+  const sortSel = document.getElementById("meal-sort");
+  if (sortSel) sortSel.addEventListener("change", e => { currentSort = e.target.value; renderHome(); });
+
+  // Skipped toggle
+  const skippedToggle = document.getElementById("skipped-toggle");
+  if (skippedToggle) {
+    skippedToggle.addEventListener("click", () => {
+      skippedOpen = !skippedOpen;
+      renderSkipped();
+    });
+  }
+
+  // Cousins search
+  const cousinsSearch = document.getElementById("cousins-search");
+  if (cousinsSearch) cousinsSearch.addEventListener("input", renderCousins);
+
   // Modal closing
   document.getElementById("modal-close").addEventListener("click", closeModal);
   document.getElementById("modal-overlay").addEventListener("click", e => {
@@ -1796,6 +2006,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 });
+
 </script>
 
 </body>
