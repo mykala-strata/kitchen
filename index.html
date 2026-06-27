@@ -747,6 +747,22 @@ body {
 }
 .settings-input:focus { background: #e8e2d4; }
 
+/* === INVENTORY LOCATION GROUPING === */
+.inv-loc-section {
+  margin-bottom: 0;
+}
+.inv-loc-head {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: #6b6557;
+  padding: 10px 4px 6px;
+  letter-spacing: 0.04em;
+  border-top: 1px solid #ece6d8;
+  margin-top: 8px;
+}
+.inv-loc-section:first-child .inv-loc-head { border-top: none; margin-top: 0; }
+.list-section > .inv-loc-section:first-child .inv-loc-head { border-top: none; margin-top: 0; padding-top: 2px; }
+
 /* === INVENTORY SUB-CATEGORY LABEL === */
 .inv-subcat-label {
   font-weight: 200;
@@ -762,6 +778,27 @@ body {
 
 /* === ACTION BTN ICON === */
 .action-btn svg { display: inline-block; vertical-align: middle; }
+
+/* === RECIPE SCALER === */
+.scaler-btn {
+  background: #efeae0;
+  border: 1px solid #d9d3c4;
+  border-radius: 8px;
+  padding: 5px 13px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: #6b6557;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.01em;
+}
+.scaler-btn:hover { background: #e8e2d4; border-color: #c9c1a8; }
+.scaler-btn.scaler-active {
+  background: #2a2722;
+  border-color: #2a2722;
+  color: #F7F5F0;
+}
 
 /* === STATUS INDICATOR === */
 .sync-status {
@@ -1007,6 +1044,17 @@ body {
   </div>
 </div>
 
+<!-- ========== ITEM INFO PANEL ========== -->
+<div class="modal-overlay" id="item-panel-overlay">
+  <div class="modal" id="item-panel-modal">
+    <div class="modal-grip"></div>
+    <button class="modal-close" id="item-panel-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div id="item-panel-body"></div>
+  </div>
+</div>
+
 <!-- ========== SETTINGS MODAL ========== -->
 <div class="modal-overlay" id="settings-overlay">
   <div class="modal">
@@ -1128,7 +1176,12 @@ const INVENTORY_LOCATIONS = {"Basil":"Garden","Cilantro":"Garden","Dill":"Garden
 const INITIAL_SHOPPING = ["Garlic","Limes","Lemons","Fresh jalapeño","Avocado","Mushrooms","Celery","Lemongrass paste","Green onion","Fresh potatoes","Rotisserie chicken","Shaved deli meat","Ciabatta buns","Ground beef","Sour cream","Block of mild cheddar","Parmesan","Canned kidney beans","Chunky spicy salsa","Chili seasoning packet","Beef broth","Capers","Soy sauce","Tahini","Water chestnuts","Beef jerky","Pull-apart Twizzlers","Eggs","Butter","Vanilla extract","Bananas","Avocado oil","Agave nectar"];
 const SHOPPING_SECTIONS = {"Garlic":"Produce & Fresh","Limes":"Produce & Fresh","Lemons":"Produce & Fresh","Fresh jalapeño":"Produce & Fresh","Avocado":"Produce & Fresh","Mushrooms":"Produce & Fresh","Celery":"Produce & Fresh","Lemongrass paste":"Produce & Fresh","Green onion":"Produce & Fresh","Fresh potatoes":"Produce & Fresh","Rotisserie chicken":"Deli","Shaved deli meat":"Deli","Ciabatta buns":"Deli","Ground beef":"Meat","Sour cream":"Dairy & Refrigerated","Block of mild cheddar":"Dairy & Refrigerated","Parmesan":"Dairy & Refrigerated","Canned kidney beans":"Canned & Pantry","Chunky spicy salsa":"Canned & Pantry","Chili seasoning packet":"Canned & Pantry","Beef broth":"Canned & Pantry","Capers":"Canned & Pantry","Soy sauce":"Canned & Pantry","Tahini":"International Aisle","Water chestnuts":"International Aisle","Beef jerky":"Snacks & Treats","Pull-apart Twizzlers":"Snacks & Treats","Eggs":"Aldi","Butter":"Aldi","Vanilla extract":"Next Time","Bananas":"Next Time","Avocado oil":"Next Time","Agave nectar":"Next Time"};
 const SHOPPING_NOTES = {"Garlic":"Running low - chili, soup, marinades","Limes":"Lemongrass chicken marinade, street corn","Lemons":"Caper pasta, lemon chicken, rosemary chicken","Fresh jalapeño":"Chili - fresh, not pickled","Avocado":"Chili topping","Mushrooms":"~10-12 oz, chili sub for ground beef","Celery":"Chicken noodle soup, stir fry","Lemongrass paste":"Produce section, grilled chicken","Green onion":"To plant + eat","Fresh potatoes":"Bacon dill potato pancakes","Rotisserie chicken":"Chicken noodle soup","Shaved deli meat":"Sandwiches","Ground beef":"1 lb for chili","Sour cream":"Chili topping","Block of mild cheddar":"Mac and cheese, jalapeño biscuits","Parmesan":"Caesar dressing, broccoli, zucchini fries","Canned kidney beans":"Chili - 2 cans, 15 oz each","Chunky spicy salsa":"Chili - 2 jars, 16 oz each","Beef broth":"Chili, stew","Capers":"Lemon caper pasta","Soy sauce":"Cucumber salad, stir fry, fried rice","Tahini":"Sesame noodles - aisle 14 at Kroger","Water chestnuts":"Stir fry","Eggs":"Backup carton","Butter":"Stocking up","Vanilla extract":"For crepes","Bananas":"Smoothies, oatmeal","Avocado oil":"Homemade sliced bread","Agave nectar":"Vinaigrette"};
-const INVENTORY_KEYS = ["Garden","Mini Fridge","Main Fridge - Dairy","Main Fridge - Produce","Main Fridge - Deli & Prepared","Main Fridge - Drinks","Main Freezer","Outdoor Fridge & Freezer","Pantry","Seasonings & Spices"];
+const INVENTORY_KEYS = ["Garden","Mini Fridge","Main Fridge - Produce","Main Fridge - Dairy","Main Fridge - Deli & Prepared","Main Fridge - Drinks","Main Freezer","Outdoor Fridge & Freezer","Pantry","Seasonings & Spices"];
+const INVENTORY_LOCATION_GROUPS = [
+  { label: "Fresh & Fridge", locations: ["Mini Fridge","Main Fridge - Produce","Main Fridge - Dairy","Main Fridge - Deli & Prepared","Main Fridge - Drinks"] },
+  { label: "Freezer", locations: ["Main Freezer","Outdoor Fridge & Freezer"] },
+  { label: "Pantry & Dry Goods", locations: ["Pantry","Seasonings & Spices"] },
+];
 const SHOPPING_KEYS = ["Produce & Fresh","Deli","Meat","Dairy & Refrigerated","Canned & Pantry","International Aisle","Snacks & Treats","Aldi","Pharmacy & Personal Care","Next Time"];
 
 // Sub-categories within inventory locations
@@ -1186,6 +1239,45 @@ let state = {
 
 let currentSort = "status";
 let skippedOpen = false;
+let recipeServingScale = 1; // multiplier vs base servings
+let recipeBaseServings = null; // parsed integer from recipe
+
+// Parse the base number of servings from a string like "4", "2-3", "4 sandwiches"
+function parseServings(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// Scale a quantity string like "2 cups" -> "4 cups" by multiplier
+function scaleIngredient(ingStr, scale) {
+  if (scale === 1) return ingStr;
+  // Match leading number (int, decimal, or fraction like 1/2)
+  return ingStr.replace(/^(\d+\/\d+|\d+\.?\d*)/, (match) => {
+    let val;
+    if (match.includes('/')) {
+      const [a, b] = match.split('/').map(Number);
+      val = (a / b) * scale;
+    } else {
+      val = parseFloat(match) * scale;
+    }
+    // Format nicely
+    if (val === Math.floor(val)) return String(Math.floor(val));
+    // Try to express as a simple fraction
+    const fracs = [[1,4],[1,3],[1,2],[2,3],[3,4]];
+    for (const [n,d] of fracs) {
+      if (Math.abs(val - n/d) < 0.05) return n + '/' + d;
+    }
+    const whole = Math.floor(val);
+    if (whole > 0) {
+      const rem = val - whole;
+      for (const [n,d] of fracs) {
+        if (Math.abs(rem - n/d) < 0.05) return whole + ' ' + n + '/' + d;
+      }
+    }
+    return val.toFixed(1).replace(/\.0$/, '');
+  });
+}
 
 let currentFilter = "all";
 let currentSearch = "";
@@ -1298,6 +1390,9 @@ function moveToShopping(item) {
   state.inInventory = state.inInventory.filter(i => i !== item);
   if (!state.inShopping.includes(item) && !state.skipped.includes(item)) {
     state.inShopping.push(item);
+    // Tag with addedAt so it gets the "new" badge
+    state.custom[item] = state.custom[item] || {};
+    state.custom[item].addedAt = Date.now();
   }
   saveAndRender();
 }
@@ -1651,7 +1746,13 @@ function renderShopping() {
       removeFromShopping(el.dataset.item);
     });
   });
-  
+  container.querySelectorAll(".edit-item-btn").forEach(el => {
+    el.addEventListener("click", e => { e.stopPropagation(); openEditModal(el.dataset.item, el.dataset.context); });
+  });
+  container.querySelectorAll(".item-clickable").forEach(el => {
+    el.addEventListener("click", e => { e.stopPropagation(); openItemPanel(el.dataset.item); });
+  });
+
   // Render skipped
   renderSkipped();
   
@@ -1673,7 +1774,7 @@ function renderShoppingItem(item) {
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </button>
-      <div class="list-item-info">
+      <div class="list-item-info item-clickable" data-item="${escapeAttr(item)}" style="cursor:pointer;">
         <div class="list-item-name">${escapeHtml(item)}${isNew ? ' <span style="font-size:0.65rem;color:#8a6f3a;background:#f5ecd9;padding:1px 6px;border-radius:100px;vertical-align:middle;">new</span>' : ''}</div>
         ${note ? `<div class="list-item-note">${escapeHtml(note)}</div>` : ""}
       </div>
@@ -1718,66 +1819,61 @@ function renderSkipped() {
 function renderInventory() {
   const container = document.getElementById("inventory-content");
   const search = (document.getElementById("inventory-search").value || "").toLowerCase();
-  
+
   const grouped = {};
   INVENTORY_KEYS.forEach(k => grouped[k] = []);
-  
+
   state.inInventory.forEach(item => {
-    // Skip garden herbs (they're shown elsewhere)
     if (GARDEN_HERBS.some(h => item.toLowerCase().startsWith(h))) return;
     const loc = getLocation(item);
     if (!grouped[loc]) grouped[loc] = [];
-    if (!search || item.toLowerCase().includes(search)) {
-      grouped[loc].push(item);
-    }
+    if (!search || item.toLowerCase().includes(search)) grouped[loc].push(item);
   });
-  
-  let html = "";
-  for (const [loc, items] of Object.entries(grouped)) {
-    if (!items.length) continue;
-    if (loc === "Garden") continue; // garden handled separately
 
+  function renderLocSection(loc, items) {
     const hasCats = INVENTORY_SUBCATEGORIES[loc];
-    if (hasCats && !search && items.length > 3) {
-      const subGrouped = {};
-      const other = [];
+    if (hasCats && !search && items.length > 2) {
+      const subGrouped = {}, other = [];
       items.forEach(item => {
         const cat = getSubcategory(item, loc);
-        if (cat) {
-          if (!subGrouped[cat]) subGrouped[cat] = [];
-          subGrouped[cat].push(item);
-        } else {
-          other.push(item);
-        }
+        if (cat) { if (!subGrouped[cat]) subGrouped[cat] = []; subGrouped[cat].push(item); }
+        else other.push(item);
       });
-      html += `<div class="list-section"><div class="list-section-head">${escapeHtml(loc)}</div><div class="list-items">`;
+      let inner = "";
       for (const [cat, catItems] of Object.entries(subGrouped)) {
-        html += `<div class="inv-subcat-label">${escapeHtml(cat)}</div>`;
-        html += catItems.map(item => renderInventoryItem(item)).join("");
+        inner += '<div class="inv-subcat-label">' + escapeHtml(cat) + '</div>';
+        inner += catItems.map(i => renderInventoryItem(i)).join("");
       }
       if (other.length) {
-        if (Object.keys(subGrouped).length > 0) html += `<div class="inv-subcat-label">Other</div>`;
-        html += other.map(item => renderInventoryItem(item)).join("");
+        if (Object.keys(subGrouped).length > 0) inner += '<div class="inv-subcat-label">Other</div>';
+        inner += other.map(i => renderInventoryItem(i)).join("");
       }
-      html += `</div></div>`;
-    } else {
-      html += `
-        <div class="list-section">
-          <div class="list-section-head">${escapeHtml(loc)}</div>
-          <div class="list-items">
-            ${items.map(item => renderInventoryItem(item)).join("")}
-          </div>
-        </div>
-      `;
+      return '<div class="inv-loc-section"><div class="inv-loc-head">' + escapeHtml(loc) + '</div><div class="list-items">' + inner + '</div></div>';
     }
+    return '<div class="inv-loc-section"><div class="inv-loc-head">' + escapeHtml(loc) + '</div><div class="list-items">' + items.map(i => renderInventoryItem(i)).join("") + '</div></div>';
   }
-  
+
+  let html = "";
+  for (const group of INVENTORY_LOCATION_GROUPS) {
+    const locsInGroup = group.locations.filter(loc => grouped[loc] && grouped[loc].length > 0);
+    if (!locsInGroup.length) continue;
+    html += '<div class="list-section"><div class="list-section-head">' + escapeHtml(group.label) + '</div>';
+    locsInGroup.forEach(loc => { html += renderLocSection(loc, grouped[loc]); });
+    html += '</div>';
+  }
+  const groupedLocs = INVENTORY_LOCATION_GROUPS.flatMap(g => g.locations);
+  for (const [loc, items] of Object.entries(grouped)) {
+    if (!items.length || loc === "Garden" || groupedLocs.includes(loc)) continue;
+    html += '<div class="list-section">' + renderLocSection(loc, items) + '</div>';
+  }
+
   if (!html) {
-    html = `<div class="empty">${search ? "No items match." : "Inventory is empty."}</div>`;
+    html = '<div class="empty">' + (search ? "No items match." : "Inventory is empty.") + '</div>';
   }
-  
+
   container.innerHTML = html;
-  
+
+  // Uncheck = move back to shopping list
   container.querySelectorAll(".checkbox").forEach(el => {
     el.addEventListener("click", e => {
       e.stopPropagation();
@@ -1787,15 +1883,21 @@ function renderInventory() {
       setTimeout(() => moveToShopping(item), 200);
     });
   });
-  
+
+  // Edit button
   container.querySelectorAll(".edit-item-btn").forEach(el => {
     el.addEventListener("click", e => { e.stopPropagation(); openEditModal(el.dataset.item, el.dataset.context); });
+  });
+
+  // Tap item name to open ingredient info panel
+  container.querySelectorAll(".item-clickable").forEach(el => {
+    el.addEventListener("click", e => { e.stopPropagation(); openItemPanel(el.dataset.item); });
   });
 
   // Populate location dropdown
   const sel = document.getElementById("inventory-add-location");
   if (!sel.options.length) {
-    sel.innerHTML = INVENTORY_KEYS.filter(k => k !== "Garden").map(k => `<option value="${escapeAttr(k)}">${escapeHtml(k)}</option>`).join("");
+    sel.innerHTML = INVENTORY_KEYS.filter(k => k !== "Garden").map(k => '<option value="' + escapeAttr(k) + '">' + escapeHtml(k) + '</option>').join("");
   }
 }
 
@@ -1807,7 +1909,7 @@ function renderInventoryItem(item) {
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </button>
-      <div class="list-item-info">
+      <div class="list-item-info item-clickable" data-item="${escapeAttr(item)}" style="cursor:pointer;">
         <div class="list-item-name">${escapeHtml(item)}</div>
       </div>
       <div class="list-actions">
@@ -1881,7 +1983,22 @@ function openMealDetail(mealName) {
   
   // Recipe content
   if (recipe) {
-    html += renderRecipeContent(recipe);
+    // Scaler UI for meals with a known base serving count
+    const base = parseServings(recipe.servings);
+    if (base) {
+      const scale = recipeServingScale || 1;
+      const half = base > 1 ? Math.max(1, Math.round(base / 2)) : null;
+      const dbl = Math.round(base * 2);
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="font-weight:200;font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:#9b9180;">Servings</span>`;
+      if (half) html += `<button class="scaler-btn${scale === 0.5 ? ' scaler-active' : ''}" data-meal="${escapeAttr(meal.name)}" data-scale="0.5">½</button>`;
+      html += `<button class="scaler-btn${scale === 1 ? ' scaler-active' : ''}" data-meal="${escapeAttr(meal.name)}" data-scale="1">${base}</button>`;
+      html += `<button class="scaler-btn${scale === 2 ? ' scaler-active' : ''}" data-meal="${escapeAttr(meal.name)}" data-scale="2">${dbl}</button>`;
+      html += `</div>`;
+      html += renderRecipeContent(recipe, true, scale);
+    } else {
+      html += renderRecipeContent(recipe, true);
+    }
   } else {
     html += `<div class="recipe-no-content"><strong>No recipe card yet</strong>This meal doesn't have a full recipe written down. Probably one you know by heart.</div>`;
   }
@@ -1890,55 +2007,73 @@ function openMealDetail(mealName) {
   document.getElementById("modal-body").innerHTML = html;
   document.getElementById("modal-overlay").classList.add("open");
 
-  // Wire ingredient links
-  document.getElementById("modal-body").querySelectorAll(".ing-link").forEach(el => {
-    el.addEventListener("click", () => {
-      const ing = el.dataset.ing;
-      const loc = findIngredientLocation(ing);
-      if (loc) {
-        closeModal();
-        if (loc.type === "inventory") switchView("inventory");
-        else if (loc.type === "shopping") switchView("shopping");
-        else if (loc.type === "skipped") { switchView("shopping"); skippedOpen = true; renderShopping(); }
-      } else {
-        addCustomShoppingItem(ing, "Produce & Fresh", "");
-        showSync("Added to shopping list", false);
-      }
+  // Wire scaler buttons in meal modal
+  document.getElementById("modal-body").querySelectorAll(".scaler-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      recipeServingScale = parseFloat(btn.dataset.scale);
+      openMealDetail(btn.dataset.meal);
+    });
+  });
+
+  // Wire both .ing-link (missing list) and .recipe-ing-link (recipe card) — both open item panel
+  document.getElementById("modal-body").querySelectorAll(".ing-link, .recipe-ing-link").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openItemPanel(el.dataset.ing);
     });
   });
 }
 
-function openRecipeDetail(recipeKey) {
+function openRecipeDetail(recipeKey, scale) {
   const recipe = RECIPES[recipeKey];
   if (!recipe) return;
+  const base = parseServings(recipe.servings);
+  const currentScale = scale || recipeServingScale || 1;
+  const currentServings = base ? Math.round(base * currentScale) : null;
+
   let html = `<div class="recipe-detail">`;
   if (recipe.source) html += `<div class="recipe-source">${escapeHtml(recipe.source)}</div>`;
   html += `<div class="recipe-title">${escapeHtml(recipe.title)}</div>`;
   if (recipe.url) html += `<a href="${escapeAttr(recipe.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-bottom:14px;font-size:0.82rem;color:#6b6557;text-decoration:underline;">View original recipe ↗</a>`;
-  html += renderRecipeContent(recipe, true);
+
+  // Servings scaler UI
+  if (base) {
+    const half = base > 1 ? Math.max(1, Math.round(base / 2)) : null;
+    const dbl = Math.round(base * 2);
+    const scaleLabel = currentScale === 1 ? `Serves ${base}` : `Serves ${currentServings} (${currentScale === 0.5 ? "½" : "×" + currentScale} recipe)`;
+    html += `<div id="recipe-scaler" style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+      <span style="font-weight:200;font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:#9b9180;">Servings</span>`;
+    if (half) html += `<button class="scaler-btn${currentScale === 0.5 ? ' scaler-active' : ''}" data-key="${escapeAttr(recipeKey)}" data-scale="0.5">½</button>`;
+    html += `<button class="scaler-btn${currentScale === 1 ? ' scaler-active' : ''}" data-key="${escapeAttr(recipeKey)}" data-scale="1">${base}</button>`;
+    html += `<button class="scaler-btn${currentScale === 2 ? ' scaler-active' : ''}" data-key="${escapeAttr(recipeKey)}" data-scale="2">${dbl}</button>`;
+    html += `</div>`;
+  }
+
+  html += renderRecipeContent(recipe, true, currentScale);
   html += `</div>`;
   document.getElementById("modal-body").innerHTML = html;
   document.getElementById("modal-overlay").classList.add("open");
 
+  // Wire scaler buttons
+  document.getElementById("modal-body").querySelectorAll(".scaler-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      recipeServingScale = parseFloat(btn.dataset.scale);
+      openRecipeDetail(btn.dataset.key, recipeServingScale);
+    });
+  });
+
   // Wire clickable ingredients
   document.getElementById("modal-body").querySelectorAll(".recipe-ing-link").forEach(el => {
-    el.addEventListener("click", () => {
-      const ing = el.dataset.ing;
-      const loc = findIngredientLocation(ing);
-      if (loc) {
-        closeModal();
-        if (loc.type === "inventory") switchView("inventory");
-        else if (loc.type === "shopping") switchView("shopping");
-        else if (loc.type === "skipped") { switchView("shopping"); skippedOpen = true; renderShopping(); }
-      } else {
-        addCustomShoppingItem(ing, "Produce & Fresh", "");
-        showSync("Added to shopping list", false);
-      }
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openItemPanel(el.dataset.ing);
     });
   });
 }
 
-function renderRecipeContent(recipe, clickableIngs = false) {
+function renderRecipeContent(recipe, clickableIngs = false, scale = 1) {
   let html = "";
 
   if (recipe.servings || recipe.time) {
@@ -1949,13 +2084,14 @@ function renderRecipeContent(recipe, clickableIngs = false) {
   }
 
   function renderIng(ingStr) {
-    if (!clickableIngs) return `<li>${escapeHtml(ingStr)}</li>`;
+    const scaled = scale !== 1 ? scaleIngredient(ingStr, scale) : ingStr;
+    if (!clickableIngs) return `<li>${escapeHtml(scaled)}</li>`;
     const loc = findIngredientLocation(ingStr);
-    const dot = loc
-      ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${loc.type === "inventory" ? "#7a9940" : loc.type === "shopping" ? "#b08560" : "#9b9180"};margin-right:6px;flex-shrink:0;"></span>`
-      : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ddd6c5;margin-right:6px;flex-shrink:0;"></span>`;
-    const cls = loc ? `class="recipe-ing-link" data-ing="${escapeAttr(ingStr)}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;"` : "";
-    return `<li style="display:flex;align-items:center;">${dot}<span ${cls}>${escapeHtml(ingStr)}</span></li>`;
+    const dotColor = loc
+      ? (loc.type === "inventory" ? "#7a9940" : loc.type === "shopping" ? "#b08560" : "#9b9180")
+      : "#ddd6c5";
+    const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotColor};margin-right:6px;flex-shrink:0;"></span>`;
+    return `<li style="display:flex;align-items:center;">${dot}<span class="recipe-ing-link" data-ing="${escapeAttr(ingStr)}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit;">${escapeHtml(scaled)}</span></li>`;
   }
 
   html += `<div class="recipe-section-label">Ingredients</div>`;
@@ -1980,10 +2116,114 @@ function renderRecipeContent(recipe, clickableIngs = false) {
   return html;
 }
 
+// ============================================================
+// ITEM INFO PANEL
+// ============================================================
+function openItemPanel(itemName) {
+  const needle = normalizeItem(itemName);
+
+  // Find all meals that use this ingredient
+  const mealUses = [];
+  for (const meal of MEALS) {
+    const allIngs = (meal.ingredients || []);
+    const needsStr = (meal._needs || "").split(",").map(s => s.trim()).filter(s => s);
+    const allNeeds = [...allIngs, ...needsStr];
+    const match = allNeeds.find(ing => {
+      const h = normalizeItem(ing);
+      return h === needle || h.includes(needle) || needle.includes(h) && h.length >= 4;
+    });
+    if (!match) continue;
+    // Try to find the amount from recipe data
+    let amount = null;
+    if (meal.recipe_key && RECIPES[meal.recipe_key]) {
+      const recipe = RECIPES[meal.recipe_key];
+      const allRecipeIngs = recipe.sections
+        ? recipe.sections.flatMap(s => s.ingredients)
+        : (recipe.ingredients || []);
+      const recipeMatch = allRecipeIngs.find(ri => normalizeItem(ri).includes(needle) || needle.includes(normalizeItem(ri).split(" ").slice(-1)[0]));
+      if (recipeMatch) amount = recipeMatch;
+    }
+    const status = getMealStatus(meal);
+    mealUses.push({ meal, amount, status: status.status });
+  }
+
+  // Determine where the item lives
+  const loc = findIngredientLocation(itemName);
+  const locationLabel = loc
+    ? (loc.type === "inventory" ? "In inventory" : loc.type === "shopping" ? "On shopping list" : "Skipped")
+    : "Not tracked";
+  const locationColor = loc
+    ? (loc.type === "inventory" ? "#7a9940" : loc.type === "shopping" ? "#b08560" : "#9b9180")
+    : "#9b9180";
+
+  // Build nav button if we know where item is
+  const navBtn = loc ? (
+    '<button id="item-panel-nav" style="display:inline-flex;align-items:center;gap:6px;background:#efeae0;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:0.82rem;color:#2a2722;cursor:pointer;margin-bottom:18px;" data-type="' + loc.type + '">' +
+    (loc.type === "inventory" ? "In inventory" : loc.type === "shopping" ? "On shopping list" : "Skipped") +
+    ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>'
+  ) : '<span style="font-size:0.82rem;color:#9b9180;">Not tracked</span>';
+
+  let html = '<div class="recipe-detail" style="padding-top:6px;">';
+  html += '<div style="margin-bottom:6px;">' + navBtn + '</div>';
+  html += '<div class="recipe-title" style="margin-bottom:18px;">' + escapeHtml(itemName) + '</div>';
+
+  if (mealUses.length === 0) {
+    html += '<div style="color:#9b9180;font-size:0.9rem;padding:12px 0;">No tracked meals use this ingredient.</div>';
+  } else {
+    const ready = mealUses.filter(u => u.status === "ready");
+    const close = mealUses.filter(u => u.status === "close");
+    const need = mealUses.filter(u => u.status === "need");
+
+    function renderUseGroup(label, uses, color) {
+      if (!uses.length) return "";
+      let g = '<div class="recipe-section-label" style="margin-top:18px;">' + label + '</div>';
+      g += '<ul class="recipe-ingredients">';
+      for (const u of uses) {
+        g += '<li style="display:flex;align-items:baseline;gap:8px;">';
+        g += '<span class="meal-link" data-meal="' + escapeAttr(u.meal.name) + '" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:' + color + ';flex-shrink:0;">' + escapeHtml(u.meal.name) + '</span>';
+        if (u.amount) g += '<span style="color:#9b9180;font-size:0.8rem;font-weight:200;">' + escapeHtml(u.amount) + '</span>';
+        g += '</li>';
+      }
+      g += '</ul>';
+      return g;
+    }
+
+    html += renderUseGroup("Ready to make", ready, "#4d5a2e");
+    html += renderUseGroup("Almost there", close, "#7a5d2a");
+    html += renderUseGroup("Needs shopping", need, "#6b6557");
+  }
+
+  html += '</div>';
+  document.getElementById("item-panel-body").innerHTML = html;
+  document.getElementById("item-panel-overlay").classList.add("open");
+
+  // Wire nav button — navigate to where item lives
+  const navEl = document.getElementById("item-panel-nav");
+  if (navEl) {
+    navEl.addEventListener("click", () => {
+      document.getElementById("item-panel-overlay").classList.remove("open");
+      document.getElementById("modal-overlay").classList.remove("open");
+      const t = navEl.dataset.type;
+      if (t === "inventory") switchView("inventory");
+      else if (t === "shopping") switchView("shopping");
+      else if (t === "skipped") { switchView("shopping"); skippedOpen = true; renderShopping(); }
+    });
+  }
+
+  // Wire meal links — clicking a meal name opens its detail
+  document.getElementById("item-panel-body").querySelectorAll(".meal-link").forEach(el => {
+    el.addEventListener("click", () => {
+      document.getElementById("item-panel-overlay").classList.remove("open");
+      openMealDetail(el.dataset.meal);
+    });
+  });
+}
+
 function closeModal() {
   document.getElementById("modal-overlay").classList.remove("open");
   document.getElementById("settings-overlay").classList.remove("open");
   document.getElementById("edit-overlay").classList.remove("open");
+  document.getElementById("item-panel-overlay").classList.remove("open");
 }
 
 // ============================================================
@@ -2193,6 +2433,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Settings
+  document.getElementById("item-panel-close").addEventListener("click", () => document.getElementById("item-panel-overlay").classList.remove("open"));
+  document.getElementById("item-panel-overlay").addEventListener("click", e => { if (e.target.id === "item-panel-overlay") document.getElementById("item-panel-overlay").classList.remove("open"); });
+
   document.getElementById("settings-btn").addEventListener("click", openSettings);
   document.getElementById("settings-close").addEventListener("click", closeModal);
 
@@ -2201,7 +2444,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("edit-overlay").addEventListener("click", e => { if (e.target.id === "edit-overlay") closeModal(); });
   document.getElementById("edit-save-btn").addEventListener("click", saveEditModal);
   document.getElementById("edit-delete-btn").addEventListener("click", () => {
-    if (confirm("Delete "" + editOriginalName + ""? This can't be undone.")) deleteEditModal();
+    if (confirm('Delete "' + editOriginalName + '"? This can\'t be undone.')) deleteEditModal();
   });
   // Allow Enter to save
   document.getElementById("edit-item-name").addEventListener("keydown", e => { if (e.key === "Enter") saveEditModal(); });
