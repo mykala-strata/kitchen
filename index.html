@@ -2087,7 +2087,7 @@ function renderHome() {
     worthEl.classList.remove("hidden");
     document.getElementById("worth-items").innerHTML = topWorth.map(w => `
       <div class="worth-item" style="cursor:pointer;" data-item="${escapeAttr(w.item)}">
-        <span style="text-decoration:underline;text-decoration-style:dotted;">${escapeHtml(w.item)}</span>
+        <span style="text-decoration:underline;text-decoration-style:dotted;">${escapeHtml(w.item.charAt(0).toUpperCase() + w.item.slice(1))}</span>
         <span class="worth-need">unlocks ${w.meals.length} meals</span>
       </div>
     `).join("");
