@@ -90,7 +90,7 @@ body {
   background: #efeae0;
   border: none;
   border-radius: 12px;
-  padding: 14px 16px 14px 44px;
+  padding: 14px 46px 14px 44px;
   font-family: inherit;
   font-size: 0.96rem;
   color: #2a2722;
@@ -110,8 +110,74 @@ body {
   pointer-events: none;
   color: #6b6557;
 }
+.search-add-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #ddd7ca;
+  border: none;
+  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b6557;
+  padding: 0;
+  flex-shrink: 0;
+}
+.search-add-btn:hover { background: #cec8bb; }
 
-/* === FILTER PILLS === */
+/* === CROSS-LIST SEARCH RESULTS === */
+#shopping-cross-list:not(:empty),
+#inventory-cross-list:not(:empty) {
+  margin-top: -10px;
+  margin-bottom: 18px;
+  border: 1px solid #e2dcd0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cross-list-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f7f2ea;
+  border-bottom: 1px solid #ece6d8;
+}
+.cross-list-result:last-child { border-bottom: none; }
+.cross-list-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9b9180;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cross-list-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #2a2722;
+  min-width: 0;
+}
+.cross-list-move-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #c9c3b4;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: #6b6557;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cross-list-move-btn:hover { background: #ece6d8; }
+
+/* === FILTER PILLS ===*/
 .pills {
   display: flex;
   gap: 6px;
