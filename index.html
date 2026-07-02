@@ -1812,7 +1812,12 @@ async function saveToCloud(force=false) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "X-Master-Key": key
+        "X-Master-Key": key,
+        "X-Bin-Versioning": "false" // overwrite in place -- without this, JSONBin keeps
+        // a new version on every single save, which silently bloats the bin over a
+        // long-running project like this one until it hits a size/version cap on the
+        // free tier and starts rejecting writes entirely. This app has no use for
+        // version history, so there's no downside to disabling it.
       },
       body: JSON.stringify(state)
       // NOTE: deliberately no `keepalive: true` here -- keepalive requests are capped
@@ -1821,6 +1826,9 @@ async function saveToCloud(force=false) {
       // customization had accumulated, even though the app looked "saved" locally.
     });
     if (!res.ok) {
+      let detail = '';
+      try { detail = await res.text(); } catch (e) {}
+      console.error('Save failed:', res.status, detail);
       showSync("Save failed", true);
       return false;
     }
@@ -1828,6 +1836,7 @@ async function saveToCloud(force=false) {
     if (force) showSync("Saved", false);
     return true;
   } catch (e) {
+    console.error('Save error:', e);
     showSync("Offline", true);
     return false;
   }
@@ -1851,6 +1860,18 @@ function queueSave() {
 function saveNow() {
   if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; }
   return saveToCloud(true);
+}
+
+// Like saveNow(), but for explicit Save/Delete/Reset button clicks where silently
+// failing would mean the person walks away thinking their edit stuck when it didn't.
+// Awaits the real network result and puts up a blocking alert (not just a toast that
+// can be missed) if the save genuinely failed.
+async function saveNowOrAlert() {
+  const ok = await saveNow();
+  if (!ok) {
+    alert("This didn't save to the cloud -- your change is showing here but may not stick. Check your connection and try again, or use Settings > Push to Cloud once you're back online.");
+  }
+  return ok;
 }
 
 function showSync(text, isError) {
@@ -2231,20 +2252,20 @@ function openMealIngredientsEdit(mealName) {
 
   document.getElementById("modal-body").innerHTML = html;
 
-  document.getElementById("mie-save").addEventListener("click", () => {
+  document.getElementById("mie-save").addEventListener("click", async () => {
     const lines = document.getElementById("mie-ings").value.split('\n').map(s => s.trim()).filter(Boolean).map(smartCapitalizeIngredient);
     setMealIngredients(mealName, lines);
-    saveNow();
+    await saveNowOrAlert();
     renderAll();
     openMealDetail(mealName);
   });
   document.getElementById("mie-cancel").addEventListener("click", () => openMealDetail(mealName));
   const resetBtn = document.getElementById("mie-reset");
   if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
+    resetBtn.addEventListener("click", async () => {
       if (confirm("Reset to the original ingredient list?")) {
         delete state.custom['meal:' + mealName];
-        saveNow();
+        await saveNowOrAlert();
         renderAll();
         openMealDetail(mealName);
       }
@@ -2272,11 +2293,11 @@ function openMealRename(mealName) {
 
   document.getElementById("modal-body").innerHTML = html;
 
-  document.getElementById("mr-save").addEventListener("click", () => {
+  document.getElementById("mr-save").addEventListener("click", async () => {
     const newName = document.getElementById("mr-name").value.trim();
     if (newName) {
       setMealDisplayName(mealName, newName);
-      saveNow();
+      await saveNowOrAlert();
       renderAll();
     }
     openMealDetail(mealName);
@@ -2391,7 +2412,7 @@ function openRecipeEdit(recipeKey) {
     });
   }
 
-  document.getElementById("re-save").addEventListener("click", () => {
+  document.getElementById("re-save").addEventListener("click", async () => {
     const title = document.getElementById("re-title").value.trim();
     const servings = document.getElementById("re-servings").value.trim();
     const time = document.getElementById("re-time").value.trim();
@@ -2439,7 +2460,7 @@ function openRecipeEdit(recipeKey) {
     if (notesRaw) overrides.notes = notesRaw.split('\n').map(s => s.trim()).filter(Boolean);
 
     state.custom['recipe:' + recipeKey] = overrides;
-    saveNow();
+    await saveNowOrAlert();
     openRecipeDetail(recipeKey);
   });
 
@@ -2447,10 +2468,10 @@ function openRecipeEdit(recipeKey) {
 
   const resetBtn = document.getElementById("re-reset");
   if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
+    resetBtn.addEventListener("click", async () => {
       if (confirm("Reset to original recipe?")) {
         delete state.custom['recipe:' + recipeKey];
-        saveNow();
+        await saveNowOrAlert();
         openRecipeDetail(recipeKey);
       }
     });
@@ -3602,7 +3623,7 @@ function openItemLinkedMealsEdit(itemName) {
 
   document.getElementById("item-panel-body").innerHTML = html;
 
-  document.getElementById("ilm-save").addEventListener("click", () => {
+  document.getElementById("ilm-save").addEventListener("click", async () => {
     const lines = document.getElementById("ilm-meals").value.split('\n').map(s => s.trim()).filter(Boolean);
     const matched = [];
     const unmatched = [];
@@ -3615,8 +3636,8 @@ function openItemLinkedMealsEdit(itemName) {
     state.custom[itemName] = state.custom[itemName] || {};
     if (matched.length) state.custom[itemName].linkedMeals = [...new Set(matched)];
     else delete state.custom[itemName].linkedMeals;
-    saveNow();
-    if (unmatched.length) {
+    const ok = await saveNowOrAlert();
+    if (ok && unmatched.length) {
       alert('Couldn\'t match: ' + unmatched.join(', ') + '\n\nThe rest were saved.');
     }
     openItemPanel(itemName);
@@ -3683,7 +3704,7 @@ function openEditModal(itemName, context) {
   document.getElementById("edit-overlay").classList.add("open");
 }
 
-function saveEditModal() {
+async function saveEditModal() {
   const newName = document.getElementById("edit-item-name").value.trim();
   if (!newName || !editOriginalName) return;
 
@@ -3692,18 +3713,18 @@ function saveEditModal() {
   const newLocation = editContext === "inventory" ? document.getElementById("edit-item-location").value : "";
 
   editItem(editOriginalName, newName, newNote, newSection, newLocation, editContext);
-  saveNow(); // explicit Save click -- don't leave this in the debounce window
+  await saveNowOrAlert(); // explicit Save click -- don't leave this in the debounce window
   closeModal();
 }
 
-function deleteEditModal() {
+async function deleteEditModal() {
   if (!editOriginalName) return;
   if (editContext === "shopping") {
     removeFromShopping(editOriginalName);
   } else {
     removeFromInventory(editOriginalName);
   }
-  saveNow(); // explicit Delete click -- don't leave this in the debounce window
+  await saveNowOrAlert(); // explicit Delete click -- don't leave this in the debounce window
   closeModal();
 }
 
