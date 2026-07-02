@@ -3104,7 +3104,7 @@ function openMealDetail(mealName) {
   const meal = MEALS.find(m => m.name === mealName);
   if (!meal) return;
   const statusInfo = getMealStatus(meal);
-  const recipe = meal.recipe_key ? RECIPES[meal.recipe_key] : null;
+  const recipe = meal.recipe_key ? getRecipe(meal.recipe_key) : null;
   
   let html = `<div class="recipe-detail">`;
   html += `<div class="recipe-card-header">`;
@@ -3462,7 +3462,7 @@ function openItemPanel(itemName) {
     // Try to find the amount from recipe data
     let amount = null;
     if (meal.recipe_key && RECIPES[meal.recipe_key]) {
-      const recipe = RECIPES[meal.recipe_key];
+      const recipe = getRecipe(meal.recipe_key);
       const allRecipeIngs = recipe.sections
         ? recipe.sections.flatMap(s => s.ingredients)
         : (recipe.ingredients || []);
