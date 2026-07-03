@@ -1269,6 +1269,12 @@ textarea.settings-input {
         <button class="add-btn" id="settings-push" style="width:100%; background:#efeae0; color:#2a2722">Push to Cloud</button>
       </div>
       <div class="settings-row" style="margin-top:32px">
+        <div class="settings-label">Categories & Locations</div>
+        <div class="settings-help">Add or remove sections in your shopping list and inventory.</div>
+        <button class="add-btn" id="settings-manage-shopping" style="width:100%; background:#efeae0; color:#2a2722; margin-bottom:10px;">Manage shopping categories</button>
+        <button class="add-btn" id="settings-manage-inventory" style="width:100%; background:#efeae0; color:#2a2722;">Manage inventory locations</button>
+      </div>
+      <div class="settings-row" style="margin-top:32px">
         <div class="settings-label">About</div>
         <div class="settings-help">
           Bin ID: <code style="font-size:0.78rem;color:#6b6557">6a3ee0a3da38895dfe048d4a</code><br>
@@ -1580,12 +1586,20 @@ let state = {
   custom: {}, // { itemName: { location, section, note, addedAt } }
   customShoppingCategories: [], // user-added shopping sections
   customInventoryLocations: [],  // user-added inventory locations
+  hiddenShoppingCategories: [], // built-in shopping sections the user deleted
+  hiddenInventoryLocations: [], // built-in inventory locations the user deleted
   meta: { lastUpdated: null, version: 2 }
 };
 
-// Dynamic key lists that include user-added categories
-function getShoppingKeys() { return [...SHOPPING_KEYS, ...state.customShoppingCategories.filter(c => !SHOPPING_KEYS.includes(c))]; }
-function getInventoryKeys() { return [...INVENTORY_KEYS, ...state.customInventoryLocations.filter(c => !INVENTORY_KEYS.includes(c))]; }
+// Dynamic key lists that include user-added categories, minus anything deleted
+function getShoppingKeys() {
+  return [...SHOPPING_KEYS, ...state.customShoppingCategories.filter(c => !SHOPPING_KEYS.includes(c))]
+    .filter(k => !state.hiddenShoppingCategories.includes(k));
+}
+function getInventoryKeys() {
+  return [...INVENTORY_KEYS, ...state.customInventoryLocations.filter(c => !INVENTORY_KEYS.includes(c))]
+    .filter(k => !state.hiddenInventoryLocations.includes(k));
+}
 
 let currentSort = "status";
 let skippedOpen = false;
@@ -1806,6 +1820,8 @@ async function loadFromCloud() {
         custom: record.custom || {},
         customShoppingCategories: record.customShoppingCategories || [],
         customInventoryLocations: record.customInventoryLocations || [],
+        hiddenShoppingCategories: record.hiddenShoppingCategories || [],
+        hiddenInventoryLocations: record.hiddenInventoryLocations || [],
         meta: record.meta || { lastUpdated: null, version: 1 }
       };
       lastSyncTime = new Date().toISOString();
@@ -2138,6 +2154,20 @@ function setMealIngredients(mealName, ingredients) {
   state.custom['meal:' + mealName].lastEditedAt = Date.now();
 }
 
+// Lets a meal that has no full recipe card (just tracked ingredients) get its own
+// simple set of written steps, without needing a whole RECIPE_ card built for it.
+function getMealSteps(meal) {
+  const override = state.custom['meal:' + meal.name];
+  return (override && override.steps) || [];
+}
+
+function setMealSteps(mealName, steps) {
+  state.custom['meal:' + mealName] = state.custom['meal:' + mealName] || {};
+  if (steps.length) state.custom['meal:' + mealName].steps = steps;
+  else delete state.custom['meal:' + mealName].steps;
+  state.custom['meal:' + mealName].lastEditedAt = Date.now();
+}
+
 // An ingredient line ending in "(optional)" is a nice-to-have -- it still displays,
 // and still shows whether it happens to be in stock, but it never counts against
 // a meal's ready/close/need status the way a required ingredient does.
@@ -2318,6 +2348,50 @@ function openMealIngredientsEdit(mealName) {
     resetBtn.addEventListener("click", async () => {
       if (confirm("Reset to the original ingredient list?")) {
         delete state.custom['meal:' + mealName];
+        await saveNowOrAlert();
+        renderAll();
+        openMealDetail(mealName);
+      }
+    });
+  }
+}
+
+// Lets a meal without a full recipe card get a simple, informal set of steps --
+// for when Mykala just wants to jot down how to make it without building out an
+// entire RECIPE_ card with amounts, photos, etc.
+function openMealStepsEdit(mealName) {
+  const meal = MEALS.find(m => m.name === mealName);
+  if (!meal) return;
+  const steps = getMealSteps(meal);
+
+  let html = '<div class="recipe-detail" style="padding-top:6px;">';
+  html += '<div class="recipe-title" style="margin-bottom:14px;">' + escapeHtml(mealName) + '</div>';
+  html += '<div class="settings-label" style="margin-bottom:3px;">Steps</div>';
+  html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">One step per line. They\'ll show up numbered, just like a recipe card.</div>';
+  html += '<textarea id="mse-steps" class="settings-input" style="height:220px;resize:vertical;font-size:0.86rem;line-height:1.7;margin-bottom:20px;">' + escapeHtml(steps.join('\n')) + '</textarea>';
+  html += '<div style="display:flex;gap:10px;">';
+  html += '<button class="add-btn" id="mse-save" style="flex:1;">Save</button>';
+  html += '<button class="add-btn" id="mse-cancel" style="flex:0 0 auto;background:#9b9180;">Cancel</button>';
+  if (steps.length) {
+    html += '<button class="add-btn" id="mse-reset" style="flex:0 0 auto;background:#8a3a3a;">Clear</button>';
+  }
+  html += '</div></div>';
+
+  document.getElementById("modal-body").innerHTML = html;
+
+  document.getElementById("mse-save").addEventListener("click", async () => {
+    const lines = document.getElementById("mse-steps").value.split('\n').map(s => s.trim()).filter(Boolean).map(capFirst);
+    setMealSteps(mealName, lines);
+    await saveNowOrAlert();
+    renderAll();
+    openMealDetail(mealName);
+  });
+  document.getElementById("mse-cancel").addEventListener("click", () => openMealDetail(mealName));
+  const resetBtn = document.getElementById("mse-reset");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+      if (confirm("Clear the saved steps for this meal?")) {
+        setMealSteps(mealName, []);
         await saveNowOrAlert();
         renderAll();
         openMealDetail(mealName);
@@ -3244,7 +3318,12 @@ function openMealDetail(mealName) {
   } else {
     // Show ingredients from the meal object even without a full recipe card
     const mealIngs = getMealIngredients(meal);
-    html += `<div style="margin-bottom:16px;"><button id="meal-edit-ingredients-btn" data-meal="${escapeAttr(meal.name)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit ingredients</button>${state.custom['meal:' + meal.name] ? ' <span style="font-size:0.7rem;color:#8a6f3a;background:#f5ecd9;padding:1px 7px;border-radius:100px;vertical-align:middle;margin-left:4px;">edited</span>' : ''}</div>`;
+    const mealSteps = getMealSteps(meal);
+    html += `<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">`;
+    html += `<button id="meal-edit-ingredients-btn" data-meal="${escapeAttr(meal.name)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit ingredients</button>`;
+    html += `<button id="meal-edit-steps-btn" data-meal="${escapeAttr(meal.name)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>${mealSteps.length ? "Edit steps" : "Add steps"}</button>`;
+    if (state.custom['meal:' + meal.name]) html += ' <span style="font-size:0.7rem;color:#8a6f3a;background:#f5ecd9;padding:1px 7px;border-radius:100px;display:inline-flex;align-items:center;">edited</span>';
+    html += `</div>`;
     if (mealIngs.length) {
       html += `<div class="recipe-section-label">Ingredients</div>`;
       html += `<ul class="recipe-ingredients">`;
@@ -3268,7 +3347,12 @@ function openMealDetail(mealName) {
       });
       html += `</ul>`;
     }
-    html += `<div class="recipe-no-content" style="margin-top:12px;"><strong>No recipe card yet</strong>No written instructions saved. Check the source or wing it.</div>`;
+    if (mealSteps.length) {
+      html += `<div class="recipe-section-label">Steps</div>`;
+      html += `<ol class="recipe-steps">${mealSteps.map(s => `<li>${renderStepText(s)}</li>`).join("")}</ol>`;
+    } else {
+      html += `<div class="recipe-no-content" style="margin-top:12px;"><strong>No recipe card yet</strong>No written instructions saved. Check the source, or add your own steps above.</div>`;
+    }
   }
 
   html += `</div>`;
@@ -3311,6 +3395,10 @@ function openMealDetail(mealName) {
   // Wire edit-ingredients button (meals without a recipe card)
   const mealIngEditBtn = document.getElementById("meal-edit-ingredients-btn");
   if (mealIngEditBtn) mealIngEditBtn.addEventListener("click", e => { e.stopPropagation(); openMealIngredientsEdit(mealIngEditBtn.dataset.meal); });
+
+  // Wire edit-steps button (meals without a recipe card)
+  const mealStepsEditBtn = document.getElementById("meal-edit-steps-btn");
+  if (mealStepsEditBtn) mealStepsEditBtn.addEventListener("click", e => { e.stopPropagation(); openMealStepsEdit(mealStepsEditBtn.dataset.meal); });
 
   // Wire both .ing-link (missing list) and .recipe-ing-link (recipe card) — both open item panel
   document.getElementById("modal-body").querySelectorAll(".ing-link, .recipe-ing-link").forEach(el => {
@@ -3609,6 +3697,9 @@ function openItemPanel(itemName) {
       + '<button id="item-panel-current-loc" style="display:inline-flex;align-items:center;gap:6px;background:' + current.bg + ';border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:0.82rem;color:' + current.color + ';cursor:pointer;white-space:nowrap;">'
       + current.label
       + ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>'
+      + '<button id="item-panel-goto" title="Go to ' + current.label.toLowerCase() + '" aria-label="Go to ' + current.label.toLowerCase() + '" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex-shrink:0;background:#efeae0;border:none;border-radius:8px;cursor:pointer;color:#6b6557;">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+      + '</button>'
       + '<div id="item-panel-loc-alts" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">'
       + others.map(t => {
           const meta = LOCATION_META[t];
@@ -3628,7 +3719,7 @@ function openItemPanel(itemName) {
     : '';
 
   let html = '<div class="recipe-detail" style="padding-top:6px;">';
-  html += '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">' + inlineBackBtn + navBtn + '</div>';
+  html += '<div style="margin-bottom:22px;display:flex;align-items:center;gap:8px;">' + inlineBackBtn + navBtn + '</div>';
   html += '<div class="recipe-title" style="margin-bottom:18px;">' + escapeHtml(itemName) + '</div>';
 
   // Garden herb notes
@@ -3697,6 +3788,24 @@ function openItemPanel(itemName) {
         moveItemToLocation(targetName, btn.dataset.target);
         openItemPanel(itemName); // refresh in place to show the new location
       });
+    });
+  }
+
+  // Wire "Go to list" button: jumps to the actual shopping/inventory/skipped list
+  // and scrolls to (and briefly highlights) the item, separate from the location
+  // pill above which just cycles/moves the item between lists.
+  const gotoEl = document.getElementById("item-panel-goto");
+  if (gotoEl && loc) {
+    gotoEl.addEventListener("click", () => {
+      const targetItem = loc.item;
+      const targetView = loc.type === "skipped" ? "shopping" : loc.type;
+      if (loc.type === "skipped") skippedOpen = true;
+      closeModal();
+      // Clear any active search filter that might hide the item in its list
+      const searchEl = document.getElementById(targetView + "-search");
+      if (searchEl) searchEl.value = "";
+      switchView(targetView);
+      setTimeout(() => scrollToItem(targetItem), 350);
     });
   }
 
@@ -3803,6 +3912,109 @@ function openItemLinkedMealsEdit(itemName) {
     openItemPanel(itemName);
   });
   document.getElementById("ilm-cancel").addEventListener("click", () => openItemPanel(itemName));
+}
+
+// ============================================================
+// MANAGE CATEGORIES / LOCATIONS
+// ============================================================
+// Lets Mykala add or remove shopping-list sections and inventory locations from a
+// dedicated screen (Settings > Manage...), rather than only through the buried
+// "+ New category..." option in the add-item dropdowns. Deleting a built-in section
+// hides it (it stays a real key so old data isn't broken) while deleting a custom one
+// removes it outright. Either way, any items currently sitting in that section are
+// reassigned to a fallback so nothing gets orphaned.
+function openManageCategories(kind) {
+  const isShopping = kind === "shopping";
+  const title = isShopping ? "Shopping categories" : "Inventory locations";
+  const noun = isShopping ? "category" : "location";
+  const keys = isShopping ? getShoppingKeys() : getInventoryKeys();
+  const items = isShopping ? state.inShopping : state.inInventory;
+  const countFor = k => items.filter(it => (isShopping ? getSection(it) : getLocation(it)) === k).length;
+
+  let html = '<div class="recipe-detail" style="padding-top:6px;">';
+  html += '<div class="recipe-title" style="margin-bottom:6px;">' + title + '</div>';
+  html += '<div style="font-weight:200;font-size:0.72rem;line-height:1.4;color:#9b9180;margin-bottom:20px;">Add new ' + noun + 's or remove ones you don\'t use. Items sitting in a deleted ' + noun + ' move to another one automatically.</div>';
+
+  html += '<div style="display:flex;gap:8px;margin-bottom:24px;">';
+  html += '<input type="text" id="mc-new-name" class="settings-input" placeholder="New ' + noun + ' name" style="flex:1;margin-bottom:0;">';
+  html += '<button class="add-btn" id="mc-add-btn" style="flex:0 0 auto;">Add</button>';
+  html += '</div>';
+
+  html += '<div id="mc-list">';
+  keys.forEach(k => {
+    const count = countFor(k);
+    const locked = (!isShopping && k === "Garden");
+    html += '<div class="skipped-item" style="padding:11px 0;">';
+    html += '<span>' + escapeHtml(k) + (count ? ' <span style="font-size:0.68rem;color:#9b9180;font-weight:200;">(' + count + ')</span>' : '') + '</span>';
+    if (locked) {
+      html += '<span style="font-size:0.68rem;color:#9b9180;font-weight:200;">Required</span>';
+    } else {
+      html += '<button class="mc-delete-btn" data-kind="' + kind + '" data-key="' + escapeAttr(k) + '" style="background:none;border:none;color:#b6604a;cursor:pointer;padding:4px;display:inline-flex;" title="Delete" aria-label="Delete ' + escapeAttr(k) + '">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>'
+        + '</button>';
+    }
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  document.getElementById("item-panel-body").innerHTML = html;
+  document.getElementById("item-panel-overlay").classList.add("open");
+
+  document.getElementById("mc-add-btn").addEventListener("click", async () => {
+    const nameEl = document.getElementById("mc-new-name");
+    const name = nameEl.value.trim();
+    if (!name) return;
+    if (keys.some(k => k.toLowerCase() === name.toLowerCase())) {
+      alert("That " + noun + " already exists.");
+      return;
+    }
+    if (isShopping) state.customShoppingCategories.push(name);
+    else state.customInventoryLocations.push(name);
+    renderAll();
+    await saveNowOrAlert();
+    openManageCategories(kind);
+  });
+
+  document.getElementById("mc-list").querySelectorAll(".mc-delete-btn").forEach(btn => {
+    btn.addEventListener("click", () => deleteCategory(btn.dataset.kind, btn.dataset.key));
+  });
+}
+
+async function deleteCategory(kind, key) {
+  const isShopping = kind === "shopping";
+  const noun = isShopping ? "category" : "location";
+  const allKeys = isShopping ? getShoppingKeys() : getInventoryKeys();
+  const remaining = allKeys.filter(k => k !== key);
+  if (!remaining.length) {
+    alert("You need at least one " + noun + ".");
+    return;
+  }
+  const items = isShopping ? state.inShopping : state.inInventory;
+  const affected = items.filter(it => (isShopping ? getSection(it) : getLocation(it)) === key);
+  const preferredFallback = isShopping ? "Next Time" : "Pantry";
+  const fallback = remaining.includes(preferredFallback) ? preferredFallback : remaining[0];
+
+  let msg = 'Delete "' + key + '"?';
+  if (affected.length) msg += ' ' + affected.length + ' item' + (affected.length === 1 ? '' : 's') + ' will move to "' + fallback + '".';
+  if (!confirm(msg)) return;
+
+  affected.forEach(it => {
+    state.custom[it] = state.custom[it] || {};
+    if (isShopping) state.custom[it].section = fallback;
+    else state.custom[it].location = fallback;
+  });
+
+  if (isShopping) {
+    state.customShoppingCategories = state.customShoppingCategories.filter(c => c !== key);
+    if (SHOPPING_KEYS.includes(key) && !state.hiddenShoppingCategories.includes(key)) state.hiddenShoppingCategories.push(key);
+  } else {
+    state.customInventoryLocations = state.customInventoryLocations.filter(c => c !== key);
+    if (INVENTORY_KEYS.includes(key) && !state.hiddenInventoryLocations.includes(key)) state.hiddenInventoryLocations.push(key);
+  }
+
+  renderAll();
+  await saveNowOrAlert();
+  openManageCategories(kind);
 }
 
 function scrollToItem(itemName) {
@@ -4156,6 +4368,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderAll();
   });
   document.getElementById("settings-push").addEventListener("click", () => saveToCloud(true));
+  document.getElementById("settings-manage-shopping").addEventListener("click", () => {
+    document.getElementById("settings-overlay").classList.remove("open");
+    openManageCategories("shopping");
+  });
+  document.getElementById("settings-manage-inventory").addEventListener("click", () => {
+    document.getElementById("settings-overlay").classList.remove("open");
+    openManageCategories("inventory");
+  });
 
   // Add item buttons
   document.getElementById("shopping-add-btn").addEventListener("click", () => {
