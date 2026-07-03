@@ -1419,6 +1419,19 @@ function containsAsWord(haystack, needle) {
   return true;
 }
 
+// Looser than containsAsWord: true if the two phrases share at least one meaningful
+// word, regardless of order or extra adjectives. Used to decide "is this tracked
+// ingredient basically the same thing as this recipe line" -- e.g. "Chili seasoning
+// packet" vs "1 packet chili seasoning" (word order differs) or "Chunky spicy salsa"
+// vs "chunky salsa" (extra adjective). A strict substring check misses both of those,
+// which caused the same ingredient to show up twice on a recipe card.
+const INGREDIENT_STOPWORDS = new Set(['and','or','the','a','an','of','with','for','to','in','plus','extra','fresh','optional']);
+function sharesSignificantWord(a, b) {
+  const wordsA = singularizeEnd(a).split(/[^a-z0-9]+/i).filter(w => w.length >= 4 && !INGREDIENT_STOPWORDS.has(w));
+  const wordsB = b.split(/[^a-z0-9]+/i).map(w => singularizeEnd(w.toLowerCase()));
+  return wordsA.some(w => wordsB.includes(singularizeEnd(w)));
+}
+
 // Ingredient aliases: having X means you have Y
 const INGREDIENT_ALIASES = {
   "lemon juice": ["lemons","lemon"],
@@ -3199,7 +3212,7 @@ function openMealDetail(mealName) {
       const normed = normalizeItem(item);
       const alreadyInRecipe = recipeIngTexts.some(ri => {
         const h = normalizeItem(ri);
-        return h === normed || containsAsWord(h, normed) || containsAsWord(normed, h);
+        return h === normed || containsAsWord(h, normed) || containsAsWord(normed, h) || sharesSignificantWord(normed, h);
       });
       if (alreadyInRecipe) return false;
       return !gardenHerbsList.some(herb => normed === normalizeItem(herb) || containsAsWord(normed, normalizeItem(herb)));
