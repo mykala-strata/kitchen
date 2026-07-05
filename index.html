@@ -345,6 +345,7 @@ body {
 .status-ready { background: #d6ddb7; color: #4d5a2e; }
 .status-close { background: #f0e3bf; color: #7a5d2a; }
 .status-need { background: #eed3bc; color: #784526; }
+.status-unlisted { background: #e5e0d3; color: #8a8272; }
 
 /* === UTILITIES === */
 .worth-grabbing {
@@ -1051,6 +1052,7 @@ textarea.settings-input {
     <button class="pill" data-filter="ready">Ready Now</button>
     <button class="pill" data-filter="close">Almost There</button>
     <button class="pill" data-filter="need">Need a Trip</button>
+    <button class="pill" data-filter="unlisted">Needs Ingredients</button>
     <button class="pill" data-filter="cousins">Cousin's</button>
   </div>
 
@@ -1505,6 +1507,8 @@ const INGREDIENT_ALIASES = {
   "chili crisp": ["chili crunch","chili oil"],
   "chili crunch": ["chili crisp","chili oil"],
   "chili oil": ["chili crisp","chili crunch"],
+  "kool-aid ice blue raspberry lemonade": ["blue raspberry lemonade kool-aid powder"],
+  "blue raspberry lemonade kool-aid powder": ["kool-aid ice blue raspberry lemonade"],
 };
 
 // Returns aliases to also check (including auto-derived patterns)
@@ -1578,16 +1582,16 @@ function _inInventoryUncached(ingredient) {
   return false;
 }
 const INITIAL_INVENTORY = ["Basil","Cilantro","Dill","Sage","Chive","Thyme","Parsley","Pepper jack cheese","Goldfish","Mixed nuts","Granola bar","Hard candies","Eggs","Milk","Coffee creamer","Butter","Heavy cream","Cottage cheese","String cheese","Shredded Colby Jack","Cotija cheese","Sliced white cheese","Lemongrass (1 stalk)","Lime (half)","Cucumber","Mushrooms","Lettuce (rough)","Lettuce (fresher head)","Bell peppers","Carrots","Biscuits","Rotisserie chicken","Deli ham","Beer","Frozen pizza","Ice cream","Frozen waffles","Homemade chicken broth (6 cups)","Frozen fruit","Ground beef","Chicken breasts","Salmon fillets","Bacon","Italian sausage","Pork chops","Frozen shrimp","All-purpose flour","Bread flour","Russet potatoes (bag)","2 lbs limes","Olive oil","Vegetable oil","Sesame oil","Rice","Pasta","Elbow macaroni","Spaghetti","Campanelle noodles","Tapioca pearls","Active dry yeast","Instant yeast","Baking powder","Baking soda","Sugar","Brown sugar","Honey","Apple cider vinegar","Balsamic vinegar","White vinegar","Rice vinegar","A1 steak sauce","Sriracha","Cholula","Sambal oelek","Mayonnaise","Dijon mustard","Yellow mustard","Ketchup","BBQ sauce","Thai sweet chili sauce","Tahini","Crushed tomatoes","Diced tomatoes","Tomato paste","Black beans (cans)","Refried beans","Corn (cans)","Tortilla chips","Triscuits","Saltines","Granola","Oatmeal","Cereal","Bread crumbs","Panko","Stove Top stuffing mix","Worcestershire sauce","Anchovy paste","Furikake","Everything bagel seasoning","Chili crunch","Sesame seeds","Peanut butter","Jam","Salt","Kosher salt","Black pepper","Garlic powder","Onion powder","Paprika","Smoked paprika","Cayenne pepper","Red pepper flakes","Chili powder","Cumin","Oregano","Italian seasoning","Bay leaf","Cinnamon","Vanilla extract","Tajín","Old Bay"];
-const INVENTORY_LOCATIONS = {"Basil":"Garden","Cilantro":"Garden","Dill":"Garden","Sage":"Garden","Chive":"Garden","Thyme":"Garden","Parsley":"Garden","Green onion":"Garden","Pepper jack cheese":"Mini Fridge","Goldfish":"Mini Fridge","Mixed nuts":"Mini Fridge","Granola bar":"Mini Fridge","Hard candies":"Mini Fridge","Eggs":"Main Fridge - Dairy","Milk":"Main Fridge - Dairy","Coffee creamer":"Main Fridge - Dairy","Butter":"Main Fridge - Dairy","Heavy cream":"Main Fridge - Dairy","Cottage cheese":"Main Fridge - Dairy","String cheese":"Main Fridge - Dairy","Shredded Colby Jack":"Main Fridge - Dairy","Cotija cheese":"Main Fridge - Dairy","Sliced white cheese":"Main Fridge - Dairy","Lemongrass (1 stalk)":"Main Fridge - Produce","Lime (half)":"Main Fridge - Produce","Cucumber":"Main Fridge - Produce","Mushrooms":"Main Fridge - Produce","Lettuce (rough)":"Main Fridge - Produce","Lettuce (fresher head)":"Main Fridge - Produce","Bell peppers":"Main Fridge - Produce","Carrots":"Main Fridge - Produce","Biscuits":"Main Fridge - Deli & Prepared","Rotisserie chicken":"Main Fridge - Deli & Prepared","Deli ham":"Main Fridge - Deli & Prepared","Beer":"Main Fridge - Drinks","Frozen pizza":"Main Freezer","Ice cream":"Main Freezer","Frozen waffles":"Main Freezer","Homemade chicken broth (6 cups)":"Outdoor Fridge & Freezer","Frozen fruit":"Outdoor Fridge & Freezer","Ground beef":"Outdoor Fridge & Freezer","Chicken breasts":"Outdoor Fridge & Freezer","Salmon fillets":"Outdoor Fridge & Freezer","Bacon":"Outdoor Fridge & Freezer","Italian sausage":"Outdoor Fridge & Freezer","Pork chops":"Outdoor Fridge & Freezer","Frozen shrimp":"Outdoor Fridge & Freezer","All-purpose flour":"Pantry","Bread flour":"Pantry","Russet potatoes (bag)":"Pantry","2 lbs limes":"Pantry","Olive oil":"Pantry","Vegetable oil":"Pantry","Sesame oil":"Pantry","Rice":"Pantry","Pasta":"Pantry","Elbow macaroni":"Pantry","Spaghetti":"Pantry","Campanelle noodles":"Pantry","Tapioca pearls":"Pantry","Active dry yeast":"Pantry","Instant yeast":"Pantry","Baking powder":"Pantry","Baking soda":"Pantry","Sugar":"Pantry","Brown sugar":"Pantry","Honey":"Pantry","Apple cider vinegar":"Pantry","Balsamic vinegar":"Pantry","White vinegar":"Pantry","Rice vinegar":"Pantry","A1 steak sauce":"Pantry","Sriracha":"Pantry","Cholula":"Pantry","Sambal oelek":"Pantry","Mayonnaise":"Pantry","Dijon mustard":"Pantry","Yellow mustard":"Pantry","Ketchup":"Pantry","BBQ sauce":"Pantry","Thai sweet chili sauce":"Pantry","Tahini":"Pantry","Crushed tomatoes":"Pantry","Diced tomatoes":"Pantry","Tomato paste":"Pantry","Black beans (cans)":"Pantry","Refried beans":"Pantry","Corn (cans)":"Pantry","Tortilla chips":"Pantry","Triscuits":"Pantry","Saltines":"Pantry","Granola":"Pantry","Oatmeal":"Pantry","Cereal":"Pantry","Bread crumbs":"Pantry","Panko":"Pantry","Stove Top stuffing mix":"Pantry","Worcestershire sauce":"Pantry","Anchovy paste":"Pantry","Furikake":"Pantry","Everything bagel seasoning":"Pantry","Chili crunch":"Pantry","Sesame seeds":"Pantry","Peanut butter":"Pantry","Jam":"Pantry","Salt":"Seasonings & Spices","Kosher salt":"Seasonings & Spices","Black pepper":"Seasonings & Spices","Garlic powder":"Seasonings & Spices","Onion powder":"Seasonings & Spices","Paprika":"Seasonings & Spices","Smoked paprika":"Seasonings & Spices","Cayenne pepper":"Seasonings & Spices","Red pepper flakes":"Seasonings & Spices","Chili powder":"Seasonings & Spices","Cumin":"Seasonings & Spices","Oregano":"Seasonings & Spices","Italian seasoning":"Seasonings & Spices","Bay leaf":"Seasonings & Spices","Cinnamon":"Seasonings & Spices","Vanilla extract":"Seasonings & Spices","Tajín":"Seasonings & Spices","Old Bay":"Seasonings & Spices",};
+const INVENTORY_LOCATIONS = {"Basil":"Garden","Cilantro":"Garden","Dill":"Garden","Sage":"Garden","Chive":"Garden","Thyme":"Garden","Parsley":"Garden","Green onion":"Garden","Pepper jack cheese":"Fridge","Goldfish":"Pantry","Mixed nuts":"Pantry","Granola bar":"Pantry","Hard candies":"Pantry","Eggs":"Fridge","Milk":"Fridge","Coffee creamer":"Fridge","Butter":"Fridge","Heavy cream":"Fridge","Cottage cheese":"Fridge","String cheese":"Fridge","Shredded Colby Jack":"Fridge","Cotija cheese":"Fridge","Sliced white cheese":"Fridge","Lemongrass (1 stalk)":"Fridge","Lime (half)":"Fridge","Cucumber":"Fridge","Mushrooms":"Fridge","Lettuce (rough)":"Fridge","Lettuce (fresher head)":"Fridge","Bell peppers":"Fridge","Carrots":"Fridge","Biscuits":"Fridge","Rotisserie chicken":"Fridge","Deli ham":"Fridge","Beer":"Fridge","Frozen pizza":"Freezer","Ice cream":"Freezer","Frozen waffles":"Freezer","Homemade chicken broth (6 cups)":"Freezer","Frozen fruit":"Freezer","Ground beef":"Freezer","Chicken breasts":"Freezer","Salmon fillets":"Freezer","Bacon":"Freezer","Italian sausage":"Freezer","Pork chops":"Freezer","Frozen shrimp":"Freezer","All-purpose flour":"Pantry","Bread flour":"Pantry","Russet potatoes (bag)":"Pantry","2 lbs limes":"Pantry","Olive oil":"Pantry","Vegetable oil":"Pantry","Sesame oil":"Pantry","Rice":"Pantry","Pasta":"Pantry","Elbow macaroni":"Pantry","Spaghetti":"Pantry","Campanelle noodles":"Pantry","Tapioca pearls":"Pantry","Active dry yeast":"Pantry","Instant yeast":"Pantry","Baking powder":"Pantry","Baking soda":"Pantry","Sugar":"Pantry","Brown sugar":"Pantry","Honey":"Pantry","Apple cider vinegar":"Pantry","Balsamic vinegar":"Pantry","White vinegar":"Pantry","Rice vinegar":"Pantry","A1 steak sauce":"Pantry","Sriracha":"Pantry","Cholula":"Pantry","Sambal oelek":"Pantry","Mayonnaise":"Pantry","Dijon mustard":"Pantry","Yellow mustard":"Pantry","Ketchup":"Pantry","BBQ sauce":"Pantry","Thai sweet chili sauce":"Pantry","Tahini":"Pantry","Crushed tomatoes":"Pantry","Diced tomatoes":"Pantry","Tomato paste":"Pantry","Black beans (cans)":"Pantry","Refried beans":"Pantry","Corn (cans)":"Pantry","Tortilla chips":"Pantry","Triscuits":"Pantry","Saltines":"Pantry","Granola":"Pantry","Oatmeal":"Pantry","Cereal":"Pantry","Bread crumbs":"Pantry","Panko":"Pantry","Stove Top stuffing mix":"Pantry","Worcestershire sauce":"Pantry","Anchovy paste":"Pantry","Furikake":"Seasonings & Spices","Everything bagel seasoning":"Seasonings & Spices","Chili crunch":"Pantry","Sesame seeds":"Seasonings & Spices","Peanut butter":"Pantry","Jam":"Pantry","Salt":"Seasonings & Spices","Kosher salt":"Seasonings & Spices","Black pepper":"Seasonings & Spices","Garlic powder":"Seasonings & Spices","Onion powder":"Seasonings & Spices","Paprika":"Seasonings & Spices","Smoked paprika":"Seasonings & Spices","Cayenne pepper":"Seasonings & Spices","Red pepper flakes":"Seasonings & Spices","Chili powder":"Seasonings & Spices","Cumin":"Seasonings & Spices","Oregano":"Seasonings & Spices","Italian seasoning":"Seasonings & Spices","Bay leaf":"Seasonings & Spices","Cinnamon":"Seasonings & Spices","Vanilla extract":"Seasonings & Spices","Tajín":"Seasonings & Spices","Old Bay":"Seasonings & Spices",};
 const INITIAL_SHOPPING = ["Garlic","Limes","Lemons","Fresh jalapeño","Avocado","Mushrooms","Celery","Lemongrass paste","Green onion","Fresh potatoes","Rotisserie chicken","Shaved deli meat","Ciabatta buns","Ground beef","Sour cream","Block of mild cheddar","Parmesan","Canned kidney beans","Chunky spicy salsa","Chili seasoning packet","Beef broth","Capers","Soy sauce","Tahini","Water chestnuts","Beef jerky","Pull-apart Twizzlers","Eggs","Butter","Vanilla extract","Bananas","Avocado oil","Agave nectar"];
 const SHOPPING_SECTIONS = {"Garlic":"Produce & Fresh","Limes":"Produce & Fresh","Lemons":"Produce & Fresh","Fresh jalapeño":"Produce & Fresh","Avocado":"Produce & Fresh","Mushrooms":"Produce & Fresh","Celery":"Produce & Fresh","Lemongrass paste":"Produce & Fresh","Green onion":"Produce & Fresh","Fresh potatoes":"Produce & Fresh","Rotisserie chicken":"Deli","Shaved deli meat":"Deli","Ciabatta buns":"Deli","Ground beef":"Meat","Sour cream":"Dairy & Refrigerated","Block of mild cheddar":"Dairy & Refrigerated","Parmesan":"Dairy & Refrigerated","Canned kidney beans":"Canned & Pantry","Chunky spicy salsa":"Canned & Pantry","Chili seasoning packet":"Canned & Pantry","Beef broth":"Canned & Pantry","Capers":"Canned & Pantry","Soy sauce":"Canned & Pantry","Tahini":"International Aisle","Water chestnuts":"International Aisle","Beef jerky":"Snacks & Treats","Pull-apart Twizzlers":"Snacks & Treats","Eggs":"Aldi","Butter":"Aldi","Vanilla extract":"Next Time","Bananas":"Next Time","Avocado oil":"Next Time","Agave nectar":"Next Time"};
 const SHOPPING_NOTES = {"Garlic":"Running low - chili, soup, marinades","Limes":"Lemongrass chicken marinade, street corn","Lemons":"Caper pasta, lemon chicken, rosemary chicken","Fresh jalapeño":"Chili - fresh, not pickled","Avocado":"Chili topping","Mushrooms":"~10-12 oz, chili sub for ground beef","Celery":"Chicken noodle soup, stir fry","Lemongrass paste":"Produce section, grilled chicken","Green onion":"To plant + eat","Fresh potatoes":"Bacon dill potato pancakes","Rotisserie chicken":"Chicken noodle soup","Shaved deli meat":"Sandwiches","Ground beef":"1 lb for chili","Sour cream":"Chili topping","Block of mild cheddar":"Mac and cheese, jalapeño biscuits","Parmesan":"Caesar dressing, broccoli, zucchini fries","Canned kidney beans":"Chili - 2 cans, 15 oz each","Chunky spicy salsa":"Chili - 2 jars, 16 oz each","Beef broth":"Chili, stew","Capers":"Lemon caper pasta","Soy sauce":"Cucumber salad, stir fry, fried rice","Tahini":"Sesame noodles - aisle 14 at Kroger","Water chestnuts":"Stir fry","Eggs":"Backup carton","Butter":"Stocking up","Vanilla extract":"For crepes","Bananas":"Smoothies, oatmeal","Avocado oil":"Homemade sliced bread","Agave nectar":"Vinaigrette"};
-const INVENTORY_KEYS = ["Garden","Mini Fridge","Main Fridge - Produce","Main Fridge - Dairy","Main Fridge - Deli & Prepared","Main Fridge - Drinks","Main Freezer","Outdoor Fridge & Freezer","Pantry","Seasonings & Spices"];
+const INVENTORY_KEYS = ["Garden","Fridge","Freezer","Pantry","Seasonings & Spices"];
 const INVENTORY_LOCATION_GROUPS = [
-  { label: "Fresh & Fridge", locations: ["Mini Fridge","Main Fridge - Produce","Main Fridge - Dairy","Main Fridge - Deli & Prepared","Main Fridge - Drinks"] },
-  { label: "Freezer", locations: ["Main Freezer","Outdoor Fridge & Freezer"] },
-  { label: "Pantry & Dry Goods", locations: ["Pantry","Seasonings & Spices"] },
   { label: "Garden", locations: ["Garden"] },
+  { label: "Fridge", locations: ["Fridge"] },
+  { label: "Freezer", locations: ["Freezer"] },
+  { label: "Pantry & Dry Goods", locations: ["Pantry","Seasonings & Spices"] },
 ];
 const SHOPPING_KEYS = ["Produce & Fresh","Deli","Meat","Dairy & Refrigerated","Canned & Pantry","International Aisle","Snacks & Treats","Aldi","Pharmacy & Personal Care","Next Time"];
 
@@ -1915,6 +1919,10 @@ async function loadFromCloud() {
         meta: record.meta || { lastUpdated: null, version: 1 }
       };
       migrateTrackedOverrides();
+      migrateInventoryLocations();
+      migrateKnownSectionErrors();
+      migrateDedupeInventoryShopping();
+      migrateOrphanedListFields();
       invalidateMatchCaches();
       lastSyncTime = new Date().toISOString();
       showSync("Synced", false);
@@ -2183,29 +2191,30 @@ function getSection(item) {
   return guessSection(item);
 }
 
+// Ordered keyword groups: checked top to bottom, first match wins. Order matters --
+// e.g. Snacks is checked before Meat so "beef jerky" lands on jerky not beef, and
+// processed/canned indicators are checked before Produce so "tomato paste" lands on
+// the can aisle instead of on tomato. Uses containsAsWord (whole-word, plural-safe)
+// instead of raw regex so "peppers"/"carrots"/"crackers" match their singular
+// keyword automatically.
+const SECTION_KEYWORD_GROUPS = [
+  ['Snacks & Treats', ['chip','cracker','triscuit','saltine','pretzel','popcorn','almond','walnut','pecan','cashew','peanut','dried fruit','raisin','jerky','granola bar','granola','candy','twizzler','goldfish','trail mix','chocolate chip']],
+  ['Dairy & Refrigerated', ['milk','cream','butter','egg','cheese','yogurt','ricotta','mascarpone','mozzarella','cheddar','parmesan','parmigiano','gruyere','brie','feta','buttermilk','half and half','oat milk','almond milk','beer','wine','kombucha','sparkling water','juice box']],
+  ['International Aisle', ['soy sauce','miso','fish sauce','oyster sauce','hoisin','tahini','sriracha','sambal','gochujang','tamarind','naan','tortilla','pita','kimchi','mirin','sake','dashi','furikake','water chestnut','rice vinegar','kool-aid','lemonade powder','drink mix']],
+  ['Canned & Pantry', ['can','canned','jar','jarred','broth','stock','tomato paste','tomato sauce','crushed tomato','diced tomato','kidney bean','chickpea','lentil','black bean','refried bean','salsa','enchilada sauce','condensed milk','coconut milk','evaporated milk','stuffing mix','stuffing','breadcrumb','panko','flour','sugar','baking powder','baking soda','yeast','vanilla extract','cocoa','chocolate bar','oatmeal','cereal','grain','rice','pasta','noodle','vinegar','honey','maple syrup','agave','molasses','cornstarch','gelatin','anchovy paste','sauce','paste']],
+  ['Meat', ['beef','steak','pork','lamb','turkey','sausage','bacon','prosciutto','brisket','chuck roast','sirloin','tenderloin','rib','chicken','drumstick','ground meat','fish','salmon','tuna','shrimp','crab','lobster','scallop','clam','mussel','anchovy','tilapia','cod','halibut','trout','hot dog','ham']],
+  ['Deli', ['deli','rotisserie','shaved meat','lox']],
+  ['Produce & Fresh', ['fresh','garlic','onion','potato','lemon','lime','avocado','tomato','jalapeno','jalapeño','cilantro','basil','ginger','carrot','celery','broccoli','zucchini','spinach','kale','lettuce','cabbage','scallion','shallot','beet','asparagus','cucumber','squash','mango','pineapple','berry','apple','banana','grape','peach','plum','orange','strawberry','blueberry','cranberry','cherry','corn','pea','leek','mushroom','herb','pepper','radish','cauliflower','eggplant']],
+];
 function guessSection(name) {
   const n = name.toLowerCase();
-  // Produce & Fresh
-  if (/(fresh|garlic|onion|potato|lemon|lime|avocado|tomato|pepper|jalape|cilantro|basil|herb|ginger|carrot|celery|broccoli|zucchini|spinach|kale|lettuce|cabbage|scallion|green onion|shallot|beet|asparagus|cucumber|squash|mango|pineapple|berry|berries|apple|banana|grape|peach|plum|orange|strawberry|blueberry|cranberry|cherry|corn|pea|bean|leek|mushroom)/.test(n)) return 'Produce & Fresh';
-  // Meat
-  if (/(beef|steak|pork|lamb|turkey|sausage|bacon|prosciutto|ground meat|brisket|chuck|sirloin|tenderloin|ribs|hot dog|ham)/.test(n)) return 'Meat';
-  // Dairy & Refrigerated
-  if (/(milk|cream|butter|egg|cheese|yogurt|sour cream|cream cheese|cottage|ricotta|mascarpone|mozzarella|cheddar|parmesan|gruyere|brie|feta|goat cheese|half and half|buttermilk|oat milk|almond milk)/.test(n)) return 'Dairy & Refrigerated';
-  // Deli
-  if (/(deli|rotisserie|sliced|shaved|smoked salmon|lox)/.test(n)) return 'Deli';
-  // Seafood
-  if (/(fish|salmon|tuna|shrimp|crab|lobster|scallop|clam|mussel|anchovy|tilapia|cod|halibut|trout)/.test(n)) return 'Meat';
-  // Canned & Pantry
-  if (/(can|canned|jar|jarred|broth|stock|sauce|paste|crushed|diced tomato|kidney|chickpea|lentil|black bean|refried|salsa|enchilada|condensed|coconut milk|evaporated)/.test(n)) return 'Canned & Pantry';
-  // International
-  if (/(soy sauce|miso|sesame|rice vinegar|fish sauce|oyster sauce|hoisin|tahini|sriracha|sambal|gochujang|tamarind|naan|tortilla|pita|kimchi|mirin|sake|dashi|furikake)/.test(n)) return 'International Aisle';
-  // Baking / Pantry
-  if (/(flour|sugar|baking|yeast|vanilla|cocoa|chocolate|oat|cereal|grain|rice|pasta|noodle|breadcrumb|panko|oil|vinegar|honey|maple|molasses|cornstarch|gelatin|agar)/.test(n)) return 'Canned & Pantry';
-  // Snacks
-  if (/(chip|cracker|snack|pretzel|popcorn|nut|almond|walnut|pecan|cashew|peanut|dried fruit|raisin|jerky|granola|bar|candy|chocolate chip)/.test(n)) return 'Snacks & Treats';
-  // Frozen
-  if (/(frozen|ice cream|pizza)/.test(n)) return 'Next Time';
-  return 'Next Time';
+  for (const [section, keywords] of SECTION_KEYWORD_GROUPS) {
+    if (keywords.some(kw => kw.includes(' ') ? n.includes(kw) : containsAsWord(n, kw))) return section;
+  }
+  // No keyword matched -- land in the general shelf-stable bucket rather than
+  // silently defaulting to "Next Time," which means something very different
+  // ("don't buy this yet") from "not sure where this goes."
+  return 'Canned & Pantry';
 }
 function getLocation(item) {
   if (state.custom[item] && state.custom[item].location) return state.custom[item].location;
@@ -2448,6 +2457,98 @@ function migrateTrackedOverrides() {
   });
 }
 
+// One-time remap for the old granular inventory locations (Mini Fridge, Main
+// Fridge - Produce/Dairy/Deli & Prepared/Drinks, Main Freezer, Outdoor Fridge &
+// Freezer) down to the simplified Fridge/Freezer scheme. Only custom.location
+// overrides need touching -- the built-in INVENTORY_LOCATIONS map was updated
+// directly in code. Idempotent.
+const OLD_TO_NEW_INVENTORY_LOCATION = {
+  "Mini Fridge": "Fridge",
+  "Main Fridge - Produce": "Fridge",
+  "Main Fridge - Dairy": "Fridge",
+  "Main Fridge - Deli & Prepared": "Fridge",
+  "Main Fridge - Drinks": "Fridge",
+  "Main Freezer": "Freezer",
+  "Outdoor Fridge & Freezer": "Freezer",
+};
+function migrateInventoryLocations() {
+  Object.values(state.custom).forEach(o => {
+    if (o && o.location && OLD_TO_NEW_INVENTORY_LOCATION[o.location]) {
+      o.location = OLD_TO_NEW_INVENTORY_LOCATION[o.location];
+    }
+  });
+}
+
+// Cleans up leftover metadata from items that have since moved between lists --
+// a "section" (shopping-only) left on an item no longer in state.inShopping, or a
+// "location" (inventory-only) left on an item no longer in state.inInventory.
+// This happens naturally as items get bought or run out; harmless to leave, but
+// confusing to read and safe to clear. Idempotent.
+function migrateOrphanedListFields() {
+  const shoppingSet = new Set(state.inShopping.map(normalizeItem));
+  const inventorySet = new Set(state.inInventory.map(normalizeItem));
+  Object.keys(state.custom).forEach(key => {
+    if (key.startsWith('meal:') || key.startsWith('recipe:')) return;
+    const o = state.custom[key];
+    if (!o) return;
+    const n = normalizeItem(key);
+    if (o.section && !shoppingSet.has(n)) delete o.section;
+    if (o.location && !inventorySet.has(n)) delete o.location;
+  });
+}
+
+// Stricter than ingredientNamesMatch on purpose: that function answers "does having
+// X cover a recipe's need for Y" (broad containment is fine there -- "chicken broth"
+// should satisfy "homemade chicken broth"). Deduping two list entries needs the
+// opposite caution, since that same containment logic would wrongly call "Water"
+// and "Water chestnuts" -- or "Granola" and "Granola bar" -- the same product just
+// because one name starts with the other. Only exact names, exact canonical names,
+// or an explicit alias-table entry count as a true duplicate here.
+function isSameProduct(a, b) {
+  const na = normalizeItem(a), nb = normalizeItem(b);
+  if (na === nb) return true;
+  const ca = canonicalName(a), cb = canonicalName(b);
+  if (ca && cb && ca === cb) return true;
+  if (ca && resolveAliases(ca).includes(cb || nb)) return true;
+  if (cb && resolveAliases(cb).includes(ca || na)) return true;
+  return false;
+}
+
+// A handful of real items ended up stamped "Produce & Fresh" simply because that's
+// the first option in the add-item dropdown and it was never changed for a batch
+// add. Only corrects the specific known cases where the mismatch is unambiguous
+// (a dairy case sitting in produce); leaves every other custom section alone since
+// most reflect a deliberate choice (e.g. "Chunky salsa" -> Next Time).
+const KNOWN_SECTION_FIXES = {
+  "Shredded cheddar cheese": "Dairy & Refrigerated",
+  "Finely grated Parmigiano-Reggiano cheese": "Dairy & Refrigerated",
+};
+function migrateKnownSectionErrors() {
+  Object.entries(KNOWN_SECTION_FIXES).forEach(([item, correctSection]) => {
+    const o = state.custom[item];
+    if (o && o.section === "Produce & Fresh") o.section = correctSection;
+  });
+}
+
+// An item can only be in stock or not -- never both. If something ended up in both
+// inInventory and inShopping (e.g. the same product added under two slightly
+// different names), inventory wins: it means the item is actually on hand, so the
+// shopping-list entry is stale and gets dropped along with its shopping-only
+// metadata. Idempotent.
+function migrateDedupeInventoryShopping() {
+  state.inShopping = state.inShopping.filter(shopItem => {
+    const isDuplicate = state.inInventory.some(invItem => isSameProduct(invItem, shopItem));
+    if (isDuplicate) {
+      if (state.custom[shopItem]) {
+        delete state.custom[shopItem].section;
+        if (Object.keys(state.custom[shopItem]).length === 0) delete state.custom[shopItem];
+      }
+    }
+    return !isDuplicate;
+  });
+}
+
+
 // Returns a meal's display name, applying a user rename if one was set. The meal's
 // original `name` always stays the stable internal ID used for lookups and for keying
 // state.custom overrides -- only the rendered text changes.
@@ -2582,8 +2683,16 @@ function getMealStatus(meal) {
   return result;
 }
 function _getMealStatusUncached(meal) {
-  const missing = getMealIngredients(meal).filter(ing => !isIngredientSlotSatisfied(ing));
+  const trackedIngredients = getMealIngredients(meal);
   const extraNeedsRaw = (meal._needs || "").split(",").map(s => s.trim()).filter(s => s);
+  // No ingredients tracked and nothing listed in _needs either -- there's simply no
+  // data to judge readiness from, so this isn't actually "Ready Now," it's a gap in
+  // the meal's data. Keep it out of the readiness tiers entirely rather than let an
+  // empty missing-list default it into "ready."
+  if (trackedIngredients.length === 0 && extraNeedsRaw.length === 0) {
+    return { status: "unlisted", missing: [], extraNeeds: [] };
+  }
+  const missing = trackedIngredients.filter(ing => !isIngredientSlotSatisfied(ing));
   const extraNeeds = extraNeedsRaw.filter(s => !inInventory(s));
   // Deduplicate across both lists (e.g. an item in ingredients AND _needs shouldn't count twice)
   const seenStatus = new Set(missing.map(s => s.trim().toLowerCase()));
@@ -3015,6 +3124,7 @@ function toSummaryCase(str) {
 
 function getMealNote(meal) {
   const status = getMealStatus(meal);
+  if (status.status === "unlisted") return "No ingredients added yet.";
   if (status.status === "ready") {
     // Show short ingredient summary or recipe hint
     if (meal._needs) return ""; // garden item version
@@ -3085,6 +3195,7 @@ function renderHome() {
   const ready = sortedFiltered.filter(m => m.statusInfo.status === "ready");
   const close = sortedFiltered.filter(m => m.statusInfo.status === "close");
   const need = sortedFiltered.filter(m => m.statusInfo.status === "need");
+  const unlisted = sortedFiltered.filter(m => m.statusInfo.status === "unlisted");
   
   // Worth Grabbing: items NOT in inventory or shopping that unlock close meals
   const allClose = mealsWithStatus.filter(m => m.statusInfo.status === "close");
@@ -3144,6 +3255,7 @@ function renderHome() {
     if (ready.length) html += renderMealSection("Ready Now", "make today", ready);
     if (close.length) html += renderMealSection("Almost There", "1-2 items away", close);
     if (need.length) html += renderMealSection("Need a Trip", "shop first", need);
+    if (unlisted.length) html += renderMealSection("Needs Ingredients", "no ingredients added yet", unlisted);
   } else {
     html += renderMealSection("All Meals", sortedFiltered.length + " meals", sortedFiltered);
   }
@@ -3191,7 +3303,7 @@ function renderMealCard(meal, statusInfo) {
   const isCousins = meal.source === "cousins";
   const hasRecipe = meal.recipe_key && RECIPES[meal.recipe_key];
   const note = getMealNote(meal);
-  const statusLabel = { ready: "Ready", close: "Close", need: "Need" }[statusInfo.status];
+  const statusLabel = { ready: "Ready", close: "Close", need: "Need", unlisted: "No data" }[statusInfo.status];
   return `
     <button class="meal" data-meal="${escapeAttr(meal.name)}">
       <div class="meal-info">
@@ -3323,6 +3435,7 @@ function renderShopping() {
     `<option value="__new__">+ New category...</option>`;
   sel.removeEventListener("change", sel._newCatHandler);
   sel._newCatHandler = () => {
+    sel._userTouchedSection = true;
     if (sel.value === "__new__") {
       const name = prompt("New shopping category name:");
       if (name && name.trim() && !SHOPPING_KEYS.includes(name.trim()) && !state.customShoppingCategories.includes(name.trim())) {
@@ -3332,6 +3445,22 @@ function renderShopping() {
     }
   };
   sel.addEventListener("change", sel._newCatHandler);
+  sel._userTouchedSection = false;
+
+  // As the item name is typed, auto-suggest a section by guessing from the name,
+  // so a quick add lands somewhere sensible even if the dropdown is never touched
+  // instead of silently sitting on whatever option happens to be listed first.
+  // Stops guessing the moment the person picks a section themselves.
+  const addNameEl = document.getElementById("shopping-add-name");
+  if (addNameEl && !addNameEl._autoSectionWired) {
+    addNameEl._autoSectionWired = true;
+    addNameEl.addEventListener("input", () => {
+      const liveSel = document.getElementById("shopping-add-section");
+      if (!liveSel || liveSel._userTouchedSection) return;
+      const guess = guessSection(addNameEl.value.trim());
+      if (guess && [...liveSel.options].some(o => o.value === guess)) liveSel.value = guess;
+    });
+  }
 }
 
 function renderShoppingItem(item) {
@@ -4171,6 +4300,7 @@ function openItemPanel(itemName) {
     const ready = mealUses.filter(u => u.status === "ready");
     const close = mealUses.filter(u => u.status === "close");
     const need = mealUses.filter(u => u.status === "need");
+    const unlisted = mealUses.filter(u => u.status === "unlisted");
 
     function renderUseGroup(label, uses, color) {
       if (!uses.length) return "";
@@ -4190,6 +4320,7 @@ function openItemPanel(itemName) {
     html += renderUseGroup("Ready to make", ready, "#4d5a2e");
     html += renderUseGroup("Almost there", close, "#7a5d2a");
     html += renderUseGroup("Needs shopping", need, "#6b6557");
+    html += renderUseGroup("Needs ingredients added", unlisted, "#8a8272");
   }
 
   html += '<button id="item-panel-edit-meals-btn" data-item="' + escapeAttr(itemName) + '" style="margin-top:10px;background:none;border:none;padding:4px 0;font-family:inherit;font-size:0.78rem;color:#9b9180;text-decoration:underline;text-decoration-style:dotted;cursor:pointer;">Edit linked meals</button>';
@@ -4613,11 +4744,13 @@ function renderCousins() {
   const ready = withStatus.filter(m => m.statusInfo.status === "ready");
   const close = withStatus.filter(m => m.statusInfo.status === "close");
   const need = withStatus.filter(m => m.statusInfo.status === "need");
+  const unlisted = withStatus.filter(m => m.statusInfo.status === "unlisted");
 
   let html = "";
   if (ready.length) html += renderMealSection("Ready Now", "make today", ready);
   if (close.length) html += renderMealSection("Almost There", "1-2 items away", close);
   if (need.length) html += renderMealSection("Need a Trip", "shop first", need);
+  if (unlisted.length) html += renderMealSection("Needs Ingredients", "no ingredients added yet", unlisted);
   if (!html) html = `<div class="empty">No cousin\'s meals match.</div>`;
 
   container.innerHTML = html;
@@ -4640,7 +4773,7 @@ function formatFractions(str) {
   if (!str) return str;
   return String(str)
     .replace(/(\d+)\s+(1\/8|1\/4|1\/3|3\/8|1\/2|5\/8|2\/3|3\/4|7\/8)/g, (_, whole, frac) => whole + FRACTION_MAP[frac])
-    .replace(/(1\/8|1\/4|1\/3|3\/8|1\/2|5\/8|2\/3|3\/4|7\/8)/g, f => FRACTION_MAP[f]);
+    .replace(/\b(1\/8|1\/4|1\/3|3\/8|1\/2|5\/8|2\/3|3\/4|7\/8)\b/g, f => FRACTION_MAP[f]);
 }
 
 // Capitalize first letter of a string, leave the rest as-is
