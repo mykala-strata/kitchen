@@ -1467,6 +1467,9 @@ const INGREDIENT_ALIASES = {
   "canola oil": ["vegetable oil"],
   "avocado oil": ["vegetable oil","olive oil"],
   "neutral oil": ["vegetable oil","canola oil","avocado oil"],
+  "chili crisp": ["chili crunch","chili oil"],
+  "chili crunch": ["chili crisp","chili oil"],
+  "chili oil": ["chili crisp","chili crunch"],
 };
 
 // Returns aliases to also check (including auto-derived patterns)
@@ -1748,41 +1751,66 @@ function scaledServingsLabel(servingsStr, scale) {
   return s;
 }
 
+// Scale a single quantity token ("2", "1.5", "1/2", "1 1/2") by a multiplier and
+// format the result back into a whole number, decimal, plain fraction, or mixed
+// number, whichever reads cleanest.
+function scaleNumberToken(token, scale) {
+  let val;
+  if (token.includes(' ')) {
+    // Mixed number: "1 1/2"
+    const [whole, frac] = token.trim().split(' ');
+    const [fn, fd] = frac.split('/').map(Number);
+    val = parseInt(whole, 10) + fn / fd;
+  } else if (token.includes('/')) {
+    const [fn, fd] = token.split('/').map(Number);
+    val = fn / fd;
+  } else {
+    val = parseFloat(token);
+  }
+  val = val * scale;
+  if (val === Math.floor(val)) return String(Math.floor(val));
+  const fracs = [[1,4],[1,3],[1,2],[2,3],[3,4]];
+  for (const [n,d] of fracs) {
+    if (Math.abs(val - n/d) < 0.04) return n + '/' + d;
+  }
+  const whole = Math.floor(val);
+  if (whole > 0) {
+    const rem = val - whole;
+    for (const [n,d] of fracs) {
+      if (Math.abs(rem - n/d) < 0.04) return whole + ' ' + n + '/' + d;
+    }
+  }
+  return val % 1 === 0 ? String(Math.round(val)) : val.toFixed(1).replace(/\.0$/, '');
+}
+
 // Scale a quantity string like "2 cups" -> "4 cups" by multiplier
 function scaleIngredient(ingStr, scale) {
   if (scale === 1) return ingStr;
-  // Match mixed numbers "1 1/2", plain fractions "1/2", integers "2", decimals "1.5"
-  return ingStr.replace(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+\.?\d*)/, (match) => {
-    let val;
-    if (match.includes(' ')) {
-      // Mixed number: "1 1/2"
-      const [whole, frac] = match.trim().split(' ');
-      const [fn, fd] = frac.split('/').map(Number);
-      val = parseInt(whole, 10) + fn / fd;
-    } else if (match.includes('/')) {
-      const [fn, fd] = match.split('/').map(Number);
-      val = fn / fd;
-    } else {
-      val = parseFloat(match);
-    }
-    val = val * scale;
-    // Format output
-    if (val === Math.floor(val)) return String(Math.floor(val));
-    const fracs = [[1,4],[1,3],[1,2],[2,3],[3,4]];
-    // Try pure fraction first
-    for (const [n,d] of fracs) {
-      if (Math.abs(val - n/d) < 0.04) return n + '/' + d;
-    }
-    // Try mixed number
-    const whole = Math.floor(val);
-    if (whole > 0) {
-      const rem = val - whole;
-      for (const [n,d] of fracs) {
-        if (Math.abs(rem - n/d) < 0.04) return whole + ' ' + n + '/' + d;
-      }
-    }
-    return val % 1 === 0 ? String(Math.round(val)) : val.toFixed(1).replace(/\.0$/, '');
+  const numTokenRe = '(\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+\\.?\\d*)';
+  // Match a leading range ("2-3", "1/2-3/4") or a single leading amount
+  let out = ingStr.replace(new RegExp('^' + numTokenRe + '(\\s*[-–]\\s*' + numTokenRe + ')?'), (full, first, rangeSuffix, second) => {
+    const scaledFirst = scaleNumberToken(first, scale);
+    if (second) return scaledFirst + '-' + scaleNumberToken(second, scale);
+    return scaledFirst;
   });
+  // Also scale the secondary metric conversion in parentheses, e.g. "(2g)", "(15ml)",
+  // "(16g-24g)" ranges, "(240g approx.)" -- but NOT package-size notes like "(8 oz)"
+  // or "(8-ounce)" or temperatures like "(220°C)", since those describe a fixed unit
+  // size rather than a scalable total amount.
+  out = out.replace(/\((\d+\.?\d*)(g|ml|kg|l)(-(\d+\.?\d*)(g|ml|kg|l))?([^)]*)\)/i, (full, n1, u1, rangePart, n2, u2, trailing) => {
+    let result = '(' + formatScaledMetric(parseFloat(n1) * scale) + u1;
+    if (rangePart) result += '-' + formatScaledMetric(parseFloat(n2) * scale) + u2;
+    return result + trailing + ')';
+  });
+  return out;
+}
+
+// Round a scaled gram/ml value to a sensible display precision: whole numbers once
+// the value reaches 1, one decimal place below that (so halving 0.6g reads as 0.3g
+// instead of rounding away to 1g or 0g).
+function formatScaledMetric(val) {
+  if (val < 1) return String(Math.round(val * 10) / 10);
+  return String(Math.round(val));
 }
 
 let currentFilter = "all";
@@ -1830,6 +1858,7 @@ async function loadFromCloud() {
         favorites: record.favorites || [],
         meta: record.meta || { lastUpdated: null, version: 1 }
       };
+      migrateTrackedOverrides();
       lastSyncTime = new Date().toISOString();
       showSync("Synced", false);
       return true;
@@ -2287,6 +2316,34 @@ function deriveTrackedIngredientsFromRecipe(recipeKey) {
   return result;
 }
 
+// Whether two ingredient names refer to the same product, using the same fuzzy
+// rules as inventory matching: exact, whole-word containment (guarded against
+// product modifiers like "garlic" vs "garlic powder"), canonical names, and the
+// alias table in both directions ("chili crunch" matches "chili crisp").
+function ingredientNamesMatch(a, b) {
+  const na = normalizeItem(a), nb = normalizeItem(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (containsAsWord(na, nb) && !hasIncompatibleModifier(na, nb)) return true;
+  if (containsAsWord(nb, na) && !hasIncompatibleModifier(nb, na)) return true;
+  const ca = canonicalName(a), cb = canonicalName(b);
+  if (ca && cb && ca === cb) return true;
+  const targetB = cb || nb;
+  if (ca && resolveAliases(ca).some(al => al === targetB || containsAsWord(targetB, al) || containsAsWord(al, targetB))) return true;
+  const targetA = ca || na;
+  if (cb && resolveAliases(cb).some(al => al === targetA || containsAsWord(targetA, al) || containsAsWord(al, targetA))) return true;
+  return false;
+}
+
+// Whether a meal's tracked ingredient list already covers an item, checking every
+// atom of every slot (so "Chili crunch" is covered by a "Chili oil / Chili crisp"
+// slot via the alias table).
+function mealAlreadyTracksItem(meal, itemName) {
+  const target = stripOptionalTag(itemName);
+  return getMealIngredients(meal).some(slot =>
+    flattenIngredientSlot(stripOptionalTag(slot)).some(atom => ingredientNamesMatch(atom, target)));
+}
+
 function getMealIngredients(meal) {
   const override = state.custom['meal:' + meal.name];
   if (override && override.ingredients) return override.ingredients;
@@ -2294,9 +2351,42 @@ function getMealIngredients(meal) {
     const derived = deriveTrackedIngredientsFromRecipe(meal.recipe_key);
     // Link-only recipe cards have no ingredient text to derive from; keep using
     // the meal's own hand-maintained list for those
-    if (derived.length) return derived;
+    if (derived.length) {
+      // Manually linked items that aren't in the recipe text ride along as extras,
+      // so derivation stays live instead of being frozen by a full override
+      const extras = (override && override.extraIngredients) || [];
+      return extras.length ? [...derived, ...extras] : derived;
+    }
   }
   return meal.ingredients || [];
+}
+
+// One-time cleanup for overrides created by the older link flow, which cloned the
+// whole derived list into state.custom just to append one linked item. If an
+// override is exactly the derived list plus additions, dissolve it: genuinely new
+// additions move to extraIngredients (keeping derivation live) and additions that
+// the recipe already covers via aliases just drop. Hand-edited overrides (anything
+// that removed or changed a derived line) are deliberate and left alone. Idempotent,
+// safe to run on every load.
+function migrateTrackedOverrides() {
+  MEALS.forEach(meal => {
+    const o = state.custom['meal:' + meal.name];
+    if (!o || !o.ingredients) return;
+    if (!(meal.recipe_key && RECIPES[meal.recipe_key])) return;
+    const derived = deriveTrackedIngredientsFromRecipe(meal.recipe_key);
+    if (!derived.length) return;
+    const overrideSet = new Set(o.ingredients.map(s => s.trim().toLowerCase()));
+    const isSuperset = derived.every(d => overrideSet.has(d.trim().toLowerCase()));
+    if (!isSuperset) return;
+    const derivedSet = new Set(derived.map(s => s.trim().toLowerCase()));
+    const additions = o.ingredients.filter(s => !derivedSet.has(s.trim().toLowerCase()));
+    const genuinelyNew = additions.filter(a =>
+      !derived.some(d => flattenIngredientSlot(stripOptionalTag(d)).some(atom => ingredientNamesMatch(atom, stripOptionalTag(a)))));
+    delete o.ingredients;
+    if (genuinelyNew.length) {
+      o.extraIngredients = [...new Set([...(o.extraIngredients || []), ...genuinelyNew])];
+    }
+  });
 }
 
 // Returns a meal's display name, applying a user rename if one was set. The meal's
@@ -3508,7 +3598,8 @@ function openMealDetail(mealName) {
   
   // Edit recipe button (only when there's a linked recipe card)
   if (recipe && meal.recipe_key) {
-    html += `<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;"><button id="recipe-edit-btn" data-key="${escapeAttr(meal.recipe_key)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit recipe</button><button id="meal-edit-ingredients-btn" data-meal="${escapeAttr(meal.name)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit tracked ingredients</button>${state.custom['recipe:' + meal.recipe_key] || state.custom['meal:' + meal.name] ? ' <span style="font-size:0.7rem;color:#8a6f3a;background:#f5ecd9;padding:1px 7px;border-radius:100px;display:inline-flex;align-items:center;">edited</span>' : ''}</div>`;
+    const hasLegacyOverride = !!(state.custom['meal:' + meal.name] && state.custom['meal:' + meal.name].ingredients);
+    html += `<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;"><button id="recipe-edit-btn" data-key="${escapeAttr(meal.recipe_key)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit recipe</button>${hasLegacyOverride ? `<button id="meal-edit-ingredients-btn" data-meal="${escapeAttr(meal.name)}" style="background:none;border:1px solid #d9d3c4;border-radius:8px;padding:5px 12px;font-family:inherit;font-size:0.78rem;color:#6b6557;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit tracked ingredients</button>` : ''}${state.custom['recipe:' + meal.recipe_key] || state.custom['meal:' + meal.name] ? ' <span style="font-size:0.7rem;color:#8a6f3a;background:#f5ecd9;padding:1px 7px;border-radius:100px;display:inline-flex;align-items:center;">edited</span>' : ''}</div>`;
   }
 
   // Ingredients linked to this meal via "Edit linked meals" on the ingredient's own panel
@@ -4153,25 +4244,36 @@ function openItemLinkedMealsEdit(itemName) {
     const previouslyLinked = (state.custom[itemName] && state.custom[itemName].linkedMeals) || [];
     const removedFrom = previouslyLinked.filter(mn => !matched.includes(mn));
     const addedTo = matched.filter(mn => !previouslyLinked.includes(mn));
-    const needle_ilm = normalizeItem(itemName);
 
     addedTo.forEach(mealName => {
       const meal = MEALS.find(m => m.name === mealName);
       if (!meal) return;
-      const current = getMealIngredients(meal);
-      const alreadyThere = current.some(ing => {
-        const h = normalizeItem(ing);
-        return h === needle_ilm || containsAsWord(h, needle_ilm) || containsAsWord(needle_ilm, h);
-      });
-      if (alreadyThere) return;
-      state.custom['meal:' + mealName] = state.custom['meal:' + mealName] || {};
-      state.custom['meal:' + mealName].ingredients = [...current, itemName];
+      // Already covered by the meal's tracked list (including via aliases, e.g.
+      // "Chili crunch" satisfying a "Chili oil / Chili crisp" slot)? Then the link
+      // is just a bookmark -- don't duplicate it into the ingredient list.
+      if (mealAlreadyTracksItem(meal, itemName)) return;
+      const o = state.custom['meal:' + mealName] = state.custom['meal:' + mealName] || {};
+      const isDerived = meal.recipe_key && RECIPES[meal.recipe_key]
+        && deriveTrackedIngredientsFromRecipe(meal.recipe_key).length > 0
+        && !o.ingredients;
+      if (isDerived) {
+        // Ride along as an extra so the list stays derived from the recipe text
+        o.extraIngredients = [...new Set([...(o.extraIngredients || []), itemName])];
+      } else {
+        o.ingredients = [...getMealIngredients(meal), itemName];
+      }
     });
 
     removedFrom.forEach(mealName => {
       const override = state.custom['meal:' + mealName];
-      if (!override || !override.ingredients) return;
-      override.ingredients = override.ingredients.filter(ing => normalizeItem(ing) !== normalizeItem(itemName));
+      if (!override) return;
+      if (override.ingredients) {
+        override.ingredients = override.ingredients.filter(ing => normalizeItem(ing) !== normalizeItem(itemName));
+      }
+      if (override.extraIngredients) {
+        override.extraIngredients = override.extraIngredients.filter(ing => normalizeItem(ing) !== normalizeItem(itemName));
+        if (!override.extraIngredients.length) delete override.extraIngredients;
+      }
     });
 
     state.custom[itemName] = state.custom[itemName] || {};
