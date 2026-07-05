@@ -1342,8 +1342,23 @@ const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 const GARDEN_HERBS = ["basil","dill","sage","thyme","cilantro","chive","parsley","green onion"];
 
 // Normalize for fuzzy matching
+// ============================================================
+// MATCHING PERFORMANCE CACHES
+// ============================================================
+// The readiness engine compares every meal's ingredient slots against the whole
+// inventory with regex-based fuzzy matching. Uncached, one full status pass costs
+// ~500ms and every render runs several, which is the lag on the phone. Pure
+// string helpers memoize permanently (same input, same output forever); anything
+// that reads state uses generation caches cleared by invalidateMatchCaches()
+// whenever the lists change.
+const _normMemo = new Map();
 function normalizeItem(s) {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s*\(.*?\)/g, '').trim();
+  let v = _normMemo.get(s);
+  if (v !== undefined) return v;
+  v = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s*\(.*?\)/g, '').trim();
+  if (_normMemo.size > 20000) _normMemo.clear();
+  _normMemo.set(s, v);
+  return v;
 }
 function stripAccents(s) {
   return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1368,7 +1383,10 @@ function stripQuantityForDisplay(s) {
 }
 
 // Strip leading amounts and filler prefixes so "1 cup homemade chicken broth" -> "chicken broth"
+const _canonMemo = new Map();
 function canonicalName(s) {
+  let cached = _canonMemo.get(s);
+  if (cached !== undefined) return cached;
   let n = normalizeItem(s);
   n = n.replace(/^[\d\/\s]+(cups?|tbsp|tsp|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|g|grams?|ml|liters?|cloves?|heads?|bunches?|sprigs?|stalks?|slices?|cans?|jars?|strips?|pieces?)\s*/i, '');
   n = n.replace(/^\d+\.?\d*\s+/, '');
@@ -1381,7 +1399,10 @@ function canonicalName(s) {
     prev = n;
     n = n.replace(adjectiveRe, '');
   } while (n !== prev);
-  return n.trim();
+  n = n.trim();
+  if (_canonMemo.size > 20000) _canonMemo.clear();
+  _canonMemo.set(s, n);
+  return n;
 }
 
 // Suffix words that turn a base ingredient into a genuinely different product --
@@ -1414,18 +1435,32 @@ function singularizeEnd(s) {
 // different product than the base ingredient, even though the base word is right there.
 // The needle's ending is also singularized before matching, so a plural item name still
 // finds a singular mention in a recipe (or vice versa).
+const _cawMemo = new Map();
+const _cawRegexMemo = new Map();
 function containsAsWord(haystack, needle) {
   if (!haystack || !needle) return false;
-  const base = singularizeEnd(needle);
-  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp('(?:^|[^a-z0-9-])(' + escaped + '(?:es|s)?)(?:$|[^a-z0-9-])', 'i');
+  const memoKey = needle + '\x1f' + haystack;
+  let cached = _cawMemo.get(memoKey);
+  if (cached !== undefined) return cached;
+  let re = _cawRegexMemo.get(needle);
+  if (!re) {
+    const base = singularizeEnd(needle);
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    re = new RegExp('(?:^|[^a-z0-9-])(' + escaped + '(?:es|s)?)(?:$|[^a-z0-9-])', 'i');
+    if (_cawRegexMemo.size > 5000) _cawRegexMemo.clear();
+    _cawRegexMemo.set(needle, re);
+  }
+  let result = false;
   const m = haystack.match(re);
-  if (!m) return false;
-  const matchEnd = m.index + m[0].indexOf(m[1]) + m[1].length;
-  const after = haystack.slice(matchEnd).trimStart();
-  const nextWord = (after.match(/^[a-z-]+/i) || [''])[0].toLowerCase();
-  if (INGREDIENT_DERIVATIVE_SUFFIXES.has(nextWord)) return false;
-  return true;
+  if (m) {
+    const matchEnd = m.index + m[0].indexOf(m[1]) + m[1].length;
+    const after = haystack.slice(matchEnd).trimStart();
+    const nextWord = (after.match(/^[a-z-]+/i) || [''])[0].toLowerCase();
+    result = !INGREDIENT_DERIVATIVE_SUFFIXES.has(nextWord);
+  }
+  if (_cawMemo.size > 50000) _cawMemo.clear();
+  _cawMemo.set(memoKey, result);
+  return result;
 }
 
 // Looser than containsAsWord: true if the two phrases share at least one meaningful
@@ -1494,8 +1529,26 @@ function hasIncompatibleModifier(haystack, needle) {
   return haystack.split(/\s+/).some(w => PRODUCT_MODIFIER_WORDS.has(w) && !needleWords.has(w));
 }
 
+// Generation caches: valid only until the underlying lists change. Cleared by
+// invalidateMatchCaches(), which every render and state mutation path goes through.
+const _invMemo = new Map();
+const _slotMemo = new Map();
+const _statusMemo = new Map();
+function invalidateMatchCaches() {
+  _invMemo.clear();
+  _slotMemo.clear();
+  _statusMemo.clear();
+}
+
 // Check if an ingredient is covered by current inventory (fuzzy)
 function inInventory(ingredient) {
+  let cached = _invMemo.get(ingredient);
+  if (cached !== undefined) return cached;
+  const result = _inInventoryUncached(ingredient);
+  _invMemo.set(ingredient, result);
+  return result;
+}
+function _inInventoryUncached(ingredient) {
   const needle = normalizeItem(ingredient);
   const needleCanon = canonicalName(ingredient);
   // Garden herbs always covered
@@ -1670,8 +1723,11 @@ function resetNav() {
 // anywhere to go back to. The item panel renders its own inline back button (next to
 // the "In inventory" / "On shopping list" pill) directly in openItemPanel instead.
 function updateBackButtons() {
+  // All detail panels now render their own inline back arrow next to the header;
+  // the old floating corner button stays permanently hidden so a stale .visible
+  // class can't bleed into editors that share the same modal.
   const modalBack = document.getElementById("modal-back");
-  if (modalBack) modalBack.classList.toggle("visible", navHistory.length > 0);
+  if (modalBack) modalBack.classList.remove("visible");
 }
 
 // Parse the base number of servings from a string like "4", "2-3", "4 sandwiches"
@@ -1859,6 +1915,7 @@ async function loadFromCloud() {
         meta: record.meta || { lastUpdated: null, version: 1 }
       };
       migrateTrackedOverrides();
+      invalidateMatchCaches();
       lastSyncTime = new Date().toISOString();
       showSync("Synced", false);
       return true;
@@ -1915,6 +1972,7 @@ async function saveToCloud(force=false) {
 }
 
 function queueSave() {
+  invalidateMatchCaches();
   if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
   saveDebounceTimer = setTimeout(() => {
     saveDebounceTimer = null;
@@ -1939,6 +1997,7 @@ function saveNow() {
 // Awaits the real network result and puts up a blocking alert (not just a toast that
 // can be missed) if the save genuinely failed.
 async function saveNowOrAlert() {
+  invalidateMatchCaches();
   const ok = await saveNow();
   if (!ok) {
     alert("This didn't save to the cloud -- your change is showing here but may not stick. Check your connection and try again, or use Settings > Push to Cloud once you're back online.");
@@ -2485,9 +2544,13 @@ function flattenIngredientSlot(slot) {
 // ingredients, while isIngredientSlotSatisfied() below governs whether a meal counts
 // as ready/close/need.
 function isIngredientSlotInStock(slot) {
+  let cached = _slotMemo.get(slot);
+  if (cached !== undefined) return cached;
   const cleaned = isOptionalIngredient(slot) ? stripOptionalTag(slot) : slot;
   const alternatives = parseIngredientSlot(cleaned);
-  return alternatives.some(parts => parts.every(part => inInventory(part)));
+  const result = alternatives.some(parts => parts.every(part => inInventory(part)));
+  _slotMemo.set(slot, result);
+  return result;
 }
 
 function isIngredientSlotSatisfied(slot) {
@@ -2512,6 +2575,13 @@ function renderIngredientSlotHtml(slot, clickableIngs, scale) {
 }
 
 function getMealStatus(meal) {
+  let cached = _statusMemo.get(meal.name);
+  if (cached !== undefined) return cached;
+  const result = _getMealStatusUncached(meal);
+  _statusMemo.set(meal.name, result);
+  return result;
+}
+function _getMealStatusUncached(meal) {
   const missing = getMealIngredients(meal).filter(ing => !isIngredientSlotSatisfied(ing));
   const extraNeedsRaw = (meal._needs || "").split(",").map(s => s.trim()).filter(s => s);
   const extraNeeds = extraNeedsRaw.filter(s => !inInventory(s));
@@ -4520,6 +4590,7 @@ function switchView(view) {
 }
 
 function renderAll() {
+  invalidateMatchCaches();
   renderHome();
   renderShopping();
   renderInventory();
