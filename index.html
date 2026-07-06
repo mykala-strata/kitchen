@@ -2686,6 +2686,17 @@ function renderIngredientSlotHtml(slot, clickableIngs, scale) {
   return altHtml.join(' <span style="color:#9b9180;font-weight:200;">or</span> ');
 }
 
+// Same idea as meal readiness, but for a recipe card directly: total ingredient
+// line count and how many of those lines aren't in stock. Reuses
+// isIngredientSlotSatisfied so " / " and " + " alternatives and "(optional)" tags
+// behave exactly like they do everywhere else in the app.
+function getRecipeReadiness(recipe) {
+  const lines = recipe.sections ? recipe.sections.flatMap(s => s.ingredients) : (recipe.ingredients || []);
+  const total = lines.length;
+  const missing = lines.filter(line => !isIngredientSlotSatisfied(line)).length;
+  return { total, missing };
+}
+
 function getMealStatus(meal) {
   let cached = _statusMemo.get(meal.name);
   if (cached !== undefined) return cached;
@@ -3195,7 +3206,12 @@ function renderHome() {
     const order = { ready: 0, close: 1, need: 2 };
     const statusDiff = order[a.statusInfo.status] - order[b.statusInfo.status];
     if (statusDiff !== 0) return statusDiff;
-    // Within the same readiness group, show most recently edited first
+    // Within the same readiness group, meals with more ingredients come first
+    // (a 10-ingredient meal you can fully make beats a 5-ingredient one)
+    const aCount = getMealIngredients(a.meal).length;
+    const bCount = getMealIngredients(b.meal).length;
+    if (aCount !== bCount) return bCount - aCount;
+    // Tie-break: most recently edited first
     const at = getMealLastEdited(a.meal), bt = getMealLastEdited(b.meal);
     if (at && bt) return bt - at;
     if (at) return -1;
@@ -3717,6 +3733,13 @@ function renderRecipes() {
     .sort((a, b) => {
       const favDiff = (isFavorite('recipe:' + b.key) ? 1 : 0) - (isFavorite('recipe:' + a.key) ? 1 : 0);
       if (favDiff !== 0) return favDiff;
+      // Fully-stocked recipes first, then 1-missing, then 2-missing, etc. Within
+      // each of those tiers, the recipe with more total ingredients comes first
+      // (a 15-ingredient recipe you can fully make beats a 2-ingredient one).
+      const aStat = getRecipeReadiness(a);
+      const bStat = getRecipeReadiness(b);
+      if (aStat.missing !== bStat.missing) return aStat.missing - bStat.missing;
+      if (aStat.total !== bStat.total) return bStat.total - aStat.total;
       return a.title.localeCompare(b.title);
     });
 
