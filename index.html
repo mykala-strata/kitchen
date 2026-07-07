@@ -1605,6 +1605,8 @@ function _inInventoryUncached(ingredient) {
       if (state.inInventory.some(item => {
         const h = normalizeItem(item);
         const hc = canonicalName(item);
+        const matchedHerb = GARDEN_HERBS.find(gh => h === gh || h.startsWith(gh + ' ') || containsAsWord(h, gh));
+        if (matchedHerb && state.disabledGardenHerbs.includes(matchedHerb)) return false;
         return h === alias || containsAsWord(h, alias) || (hc && hc === alias);
       })) return true;
     }
@@ -1724,6 +1726,12 @@ let state = {
   hiddenInventoryLocations: [], // built-in inventory locations the user deleted
   favorites: [], // bookmarked recipes/meals, e.g. "recipe:lasagna" or "meal:Tacos"
   disabledGardenHerbs: [], // herbs temporarily unavailable (heat, poor growing) without deleting them from the garden
+  // Baseline (INITIAL_SKIPPED) items the person has explicitly deleted rather than
+  // just moved elsewhere. Without this, the cloud-load merge below can't tell "never
+  // triaged yet" apart from "deliberately deleted" -- both look identical (absent from
+  // all three lists) -- so a deleted item like "Gin or vodka" would silently come back
+  // on every refresh. See saveDismissedBaseline() / the merge logic in loadFromCloud().
+  dismissedBaseline: [],
   meta: { lastUpdated: null, version: 2 }
 };
 
@@ -1996,10 +2004,12 @@ async function loadFromCloud(isRetry=false) {
       const cloudSkipped = record.skipped || [];
       const cloudInventory = record.inInventory || [];
       const cloudShopping = record.inShopping || [];
+      const dismissedBaseline = record.dismissedBaseline || [];
       const baselineToAdd = INITIAL_SKIPPED.filter(item =>
         !cloudSkipped.includes(item) &&
         !cloudInventory.includes(item) &&
-        !cloudShopping.includes(item)
+        !cloudShopping.includes(item) &&
+        !dismissedBaseline.includes(item)
       );
       const mergedSkipped = [...new Set([...cloudSkipped, ...baselineToAdd])];
       state = {
@@ -2013,6 +2023,7 @@ async function loadFromCloud(isRetry=false) {
         hiddenInventoryLocations: record.hiddenInventoryLocations || [],
         favorites: record.favorites || [],
         disabledGardenHerbs: record.disabledGardenHerbs || [],
+        dismissedBaseline: dismissedBaseline,
         meta: record.meta || { lastUpdated: null, version: 1 }
       };
       migrateTrackedOverrides();
@@ -2274,13 +2285,33 @@ function addCustomInventoryItem(name, location) {
 function removeFromShopping(item) {
   state.inShopping = state.inShopping.filter(i => i !== item);
   delete state.custom[item];
+  rememberBaselineDismissal(item);
   saveAndRender();
 }
 
 function removeFromInventory(item) {
   state.inInventory = state.inInventory.filter(i => i !== item);
   delete state.custom[item];
+  rememberBaselineDismissal(item);
   saveAndRender();
+}
+
+function deleteSkippedItem(item) {
+  state.skipped = state.skipped.filter(i => i !== item);
+  delete state.custom[item];
+  rememberBaselineDismissal(item);
+  saveAndRender();
+}
+
+// If the deleted item is one of the baseline INITIAL_SKIPPED items, record that it was
+// deliberately dismissed. The cloud-load merge re-adds any baseline item missing from
+// all three lists (so newly-added recipe ingredients show up automatically) -- without
+// this, a deletion looks identical to "never triaged," and the item quietly comes back
+// on the next refresh.
+function rememberBaselineDismissal(item) {
+  if (INITIAL_SKIPPED.includes(item) && !state.dismissedBaseline.includes(item)) {
+    state.dismissedBaseline.push(item);
+  }
 }
 
 function editItem(oldName, newName, newNote, newSection, newLocation, newSubcat, context) {
@@ -2806,17 +2837,22 @@ function getSubRecipeTitle(key) {
   return recipe ? recipe.title : key;
 }
 // A sub-recipe dependency is satisfied if all of its own ingredient lines are
-// satisfied, recursively (a sub-recipe can itself depend on another sub-recipe). The
-// _seen set guards against a circular reference looping forever.
+// satisfied, recursively (a sub-recipe can itself depend on another sub-recipe).
+// Uses getRecipe() (so a saved edit override is respected, same as the recipe's own
+// page) and deriveTrackedIngredientsFromRecipe() (the same text-cleanup pipeline the
+// standalone meal-card status uses) rather than re-deriving readiness from raw
+// ingredient text independently -- otherwise this can (and did) disagree with the
+// recipe's own "Ready Now" status. The _seen set guards against a circular reference
+// looping forever.
 function isSubRecipeSatisfied(key, _seen = new Set()) {
   if (_seen.has(key)) return true;
   _seen.add(key);
-  const recipe = RECIPES[key];
+  const recipe = getRecipe(key);
   if (!recipe) return false;
-  const lines = recipe.sections ? recipe.sections.flatMap(s => s.ingredients) : (recipe.ingredients || []);
-  return lines.every(line => {
-    if (isOptionalIngredient(line)) return true;
-    const alternatives = parseIngredientSlot(stripOptionalTag(line));
+  const trackedSlots = deriveTrackedIngredientsFromRecipe(key);
+  return trackedSlots.every(slot => {
+    if (isOptionalIngredient(slot)) return true;
+    const alternatives = parseIngredientSlot(stripOptionalTag(slot));
     return alternatives.some(parts => parts.every(p => isPartSatisfied(p, _seen)));
   });
 }
@@ -2882,13 +2918,20 @@ function renderIngredientSlotHtml(slot, clickableIngs, scale) {
         ? (() => {
             const inStock = subKey ? isSubRecipeSatisfied(subKey) : inInventory(p);
             const dotColor = inStock ? "#7a9940" : "#ddd6c5";
-            return `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};margin-right:4px;flex-shrink:0;"></span>`;
+            return `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};margin-right:4px;flex-shrink:0;vertical-align:middle;"></span>`;
           })()
         : '';
       if (subKey) {
         const title = escapeHtml(getSubRecipeTitle(subKey));
         if (!clickableIngs) return title;
         return `${dotHtml}<span class="recipe-subrecipe-link" data-recipe-key="${escapeAttr(subKey)}" style="cursor:pointer;text-decoration:underline;color:inherit;">${title}</span>`;
+      }
+      // Looks like an attempted @recipe_key reference that didn't parse (bad
+      // characters, typo, or a key that doesn't exist) -- flag it rather than let it
+      // silently render as a normal, if oddly-formatted, ingredient.
+      if (/^@/.test(p.trim())) {
+        const warn = `<span style="font-size:0.62rem;font-weight:400;color:#a8532e;background:#f7ded2;padding:1px 6px;border-radius:100px;letter-spacing:0.02em;margin-left:3px;">unrecognized</span>`;
+        return clickableIngs ? `${dotHtml}${escapeHtml(p)}${warn}` : `${escapeHtml(p)}${warn}`;
       }
       const scaledP = scale !== 1 ? scaleIngredient(p, scale) : p;
       const display = escapeHtml(capFirst(formatFractions(scaledP)));
@@ -2952,9 +2995,27 @@ function _getMealStatusUncached(meal) {
   // Optional ingredients never affect readiness (status/missing above), but their
   // stock state is still worth surfacing separately so a "Ready Now" meal doesn't
   // silently hide that its optional items aren't actually on hand.
-  const optionalMissing = trackedIngredients
-    .filter(isOptionalIngredient)
-    .filter(ing => !isIngredientSlotInStock(stripOptionalTag(ing)));
+  const optionalMissing = [];
+  trackedIngredients.filter(isOptionalIngredient).forEach(ing => {
+    const slot = stripOptionalTag(ing);
+    if (!isIngredientSlotInStock(slot)) {
+      optionalMissing.push(ing);
+      return;
+    }
+    // The slot as a whole is covered by some alternative, but a DIFFERENT alternative
+    // that combines multiple ingredients with "+" might only be partially stocked --
+    // e.g. Alfredo sauce covers the slot, but butter + heavy cream + Parmesan (the
+    // from-scratch alternative) is missing just the heavy cream. That's still worth
+    // surfacing since it affects which version of the recipe is actually makeable,
+    // even though it doesn't affect overall readiness.
+    parseIngredientSlot(slot).forEach(parts => {
+      if (parts.length < 2) return; // a single-item alternative has no partial story
+      const missingParts = parts.filter(p => !isPartSatisfied(p));
+      if (missingParts.length && missingParts.length < parts.length) {
+        missingParts.forEach(p => optionalMissing.push(p));
+      }
+    });
+  });
   if (totalMissing === 0) return { status: "ready", missing: [], extraNeeds: [], optionalMissing };
   if (totalMissing <= 2) return { status: "close", missing, extraNeeds: extraNeedsDeduped, optionalMissing };
   return { status: "need", missing, extraNeeds: extraNeedsDeduped, optionalMissing };
@@ -3373,13 +3434,30 @@ function findIngredientLocation(ing) {
     }
     return false;
   }
-  for (const item of state.inInventory) { if (fuzzy(item)) return { type: 'inventory', item }; }
+  for (const item of state.inInventory) {
+    // A disabled garden herb (e.g. "Cilantro") is still seeded as a literal inventory
+    // item under the Garden location. inInventory() already skips it when the herb is
+    // disabled (so it correctly counts as missing) but this function is a separate,
+    // independent lookup used just to color the dot/badge next to each ingredient --
+    // without the same check here, the readiness calc and the displayed dot color can
+    // disagree, which is exactly what showed cilantro green here while it correctly
+    // showed up under "Missing" elsewhere.
+    const itemNorm = normalizeItem(item);
+    const matchedHerb = GARDEN_HERBS.find(h => itemNorm === h || itemNorm.startsWith(h + ' ') || containsAsWord(itemNorm, h));
+    if (matchedHerb && state.disabledGardenHerbs.includes(matchedHerb)) continue;
+    if (fuzzy(item)) return { type: 'inventory', item };
+  }
   for (const item of state.inShopping) { if (fuzzy(item)) return { type: 'shopping', item }; }
   for (const item of state.skipped) { if (fuzzy(item)) return { type: 'skipped', item }; }
   // Alias fallback: "lemon juice" shows as in inventory if "lemons" is stocked
   if (needleCanon) {
     for (const alias of resolveAliases(needleCanon)) {
-      const hit = state.inInventory.find(item => normalizeItem(item) === alias || containsAsWord(normalizeItem(item), alias));
+      const hit = state.inInventory.find(item => {
+        const h = normalizeItem(item);
+        const matchedHerb = GARDEN_HERBS.find(gh => h === gh || h.startsWith(gh + ' ') || containsAsWord(h, gh));
+        if (matchedHerb && state.disabledGardenHerbs.includes(matchedHerb)) return false;
+        return h === alias || containsAsWord(h, alias);
+      });
       if (hit) return { type: 'inventory', item: hit, viaAlias: true };
     }
   }
@@ -3794,6 +3872,7 @@ function renderSkipped() {
         <div class="skipped-item">
           <span class="skipped-ing-link" data-item="${escapeAttr(item)}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;">${escapeHtml(item)}</span>
           <button class="action-btn" data-item="${escapeAttr(item)}">Bring back</button>
+          <button class="action-btn skipped-delete" data-item="${escapeAttr(item)}" title="Delete" aria-label="Delete ${escapeAttr(item)}" style="color:#b6604a;">Delete</button>
         </div>`).join("")
     : `<div class="skipped-empty">Nothing skipped.</div>`;
 
@@ -3812,8 +3891,11 @@ function renderSkipped() {
   el.style.transition = "max-height 0.3s ease";
   if (chevron) chevron.style.transform = skippedOpen ? "rotate(180deg)" : "rotate(0deg)";
 
-  el.querySelectorAll(".action-btn").forEach(b => {
+  el.querySelectorAll(".action-btn:not(.skipped-delete)").forEach(b => {
     b.addEventListener("click", () => unskipItem(b.dataset.item));
+  });
+  el.querySelectorAll(".skipped-delete").forEach(b => {
+    b.addEventListener("click", () => deleteSkippedItem(b.dataset.item));
   });
   el.querySelectorAll(".skipped-ing-link").forEach(b => {
     b.addEventListener("click", () => resetNavAndOpen('item', b.dataset.item));
@@ -4474,6 +4556,17 @@ function renderRecipeContent(recipe, clickableIngs = false, scale = 1, gardenHer
       const dotColor = isSubRecipeSatisfied(subKey) ? "#7a9940" : "#ddd6c5";
       const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotColor};margin-right:6px;margin-top:7px;flex-shrink:0;"></span>`;
       return `<li style="display:flex;align-items:flex-start;flex-wrap:wrap;">${dot}<span class="recipe-subrecipe-link" data-recipe-key="${escapeAttr(subKey)}" style="cursor:pointer;text-decoration:underline;color:inherit;">${title}</span>${subNotePill}${optionalPill}</li>`;
+    }
+    // A line that clearly LOOKS like an attempted @recipe_key reference (starts with
+    // "@") but failed to parse -- bad characters, a typo, or a key that doesn't exist --
+    // would otherwise silently render as an inert, non-clickable ingredient with no
+    // indication anything's wrong (e.g. the recipe title had an "&" and someone typed
+    // "@roasted_garlic_&_garlic_oil" instead of the actual key "@roasted_garlic"). Flag
+    // it visibly instead of letting it look like a normal, if oddly-formatted, ingredient.
+    if (/^@/.test(subCheckMain.trim())) {
+      const warn = `<span style="font-size:0.66rem;font-weight:400;color:#a8532e;background:#f7ded2;padding:1px 7px;border-radius:100px;letter-spacing:0.02em;margin-left:6px;">unrecognized recipe reference</span>`;
+      if (!clickableIngs) return `<li>${escapeHtml(subCheckMain)}${warn}${optionalPill}</li>`;
+      return `<li style="display:flex;align-items:flex-start;flex-wrap:wrap;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#a8532e;margin-right:6px;margin-top:7px;flex-shrink:0;"></span>${escapeHtml(subCheckMain)}${warn}${optionalPill}</li>`;
     }
 
     if (ingStr.includes(' / ') || ingStr.includes(' + ')) {
