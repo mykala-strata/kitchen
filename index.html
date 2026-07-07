@@ -1073,6 +1073,9 @@ textarea.settings-input {
       <div class="garden-title">Fresh from the garden</div>
       <div class="garden-list" id="garden-list"></div>
     </div>
+    <button id="garden-settings-btn" aria-label="Manage garden herbs" style="background:none;border:none;color:#9b9180;cursor:pointer;padding:4px;display:inline-flex;align-self:flex-start;flex-shrink:0;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </div>
 
   <!-- Worth Grabbing -->
@@ -2995,7 +2998,7 @@ function openMealIngredientsEdit(mealName) {
   if (isRecipeLinked) {
     html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">This list is derived automatically from the recipe card, so editing the recipe is usually the better fix. Saving here overrides the derived list until you Reset. One per line; " / " for alternatives, " + " for items required together, "(optional)" at the end for nice-to-haves.</div>';
   } else {
-    html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">One per line. Use " / " for alternatives, " + " to require items together within an alternative, and end a line with "(optional)" for nice-to-haves that don\'t affect readiness -- e.g. "Jam / Cinnamon + Sugar" or "Vanilla extract (optional)".</div>';
+    html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">One per line. Use " / " for alternatives, " + " to require items together within an alternative, and end a line with "(optional)" for nice-to-haves that don\'t affect readiness, e.g. "Jam / Cinnamon + Sugar" or "Vanilla extract (optional)". Add " | " partway through a line to mark everything after it as a note, e.g. "Vegetable oil | for frying". Wrap text in **double asterisks** to bold it; start a line with a backslash to turn off the automatic bold on phrases like "For serving:".</div>';
   }
   html += '<textarea id="mie-ings" class="settings-input" style="height:220px;resize:vertical;font-size:0.86rem;line-height:1.7;margin-bottom:20px;">' + escapeHtml(ings.join('\n')) + '</textarea>';
   html += '<div style="display:flex;gap:10px;">';
@@ -3143,10 +3146,10 @@ function openRecipeEdit(recipeKey) {
   html += '<input type="text" id="re-time" class="settings-input" style="margin-bottom:16px;" value="' + escapeAttr(recipe.time || '') + '">';
 
   html += '<div class="settings-label" style="margin-bottom:3px;">Ingredients</div>';
-  html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">One per line. Use # Section Name for section headers, " / " for alternatives, " + " to require items together within an alternative, and end a line with "(optional)" for nice-to-haves that don\'t affect readiness -- e.g. "Jam / Cinnamon + Sugar" or "Vanilla extract (optional)".</div>';
+  html += '<div style="font-weight:200;font-size:0.68rem;line-height:1.4;color:#9b9180;margin-bottom:6px;">One per line. Use # Section Name for section headers, " / " for alternatives, " + " to require items together within an alternative, and end a line with "(optional)" for nice-to-haves that don\'t affect readiness, e.g. "Jam / Cinnamon + Sugar" or "Vanilla extract (optional)". Add " | " partway through a line to mark everything after it as a note, e.g. "Vegetable oil | for frying". Wrap text in **double asterisks** to bold it; start a line with a backslash to turn off the automatic bold on phrases like "For serving:".</div>';
   html += '<textarea id="re-ings" class="settings-input" style="height:160px;resize:vertical;font-size:0.82rem;line-height:1.6;margin-bottom:16px;">' + escapeHtml(ingsText.trim()) + '</textarea>';
 
-  html += '<div class="settings-label" style="margin-bottom:4px;">Steps <span style="font-weight:200;font-size:0.72rem;color:#9b9180;">separate steps with a blank line</span></div>';
+  html += '<div class="settings-label" style="margin-bottom:4px;">Steps <span style="font-weight:200;font-size:0.72rem;color:#9b9180;">separate steps with a blank line. **bold** works here too; start a line with \\ to turn off automatic bold</span></div>';
   html += '<textarea id="re-steps" class="settings-input" style="height:240px;resize:vertical;font-size:0.82rem;line-height:1.6;margin-bottom:16px;">' + escapeHtml(stepsText) + '</textarea>';
 
   html += '<div class="settings-label" style="margin-bottom:4px;">Notes <span style="font-weight:200;font-size:0.72rem;color:#9b9180;">one per line</span></div>';
@@ -3361,18 +3364,16 @@ function renderHome() {
     const nameStyle = disabled
       ? 'cursor:pointer;color:#9b9180;text-decoration:line-through;'
       : 'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#4d5a2e;';
-    const toggleLabel = disabled ? 'enable' : 'disable';
-    return '<span style="white-space:nowrap;">'
-      + '<span class="garden-herb-link" data-ing="' + escapeAttr(name) + '" style="' + nameStyle + '">' + escapeHtml(name) + '</span>'
-      + ' <span class="garden-herb-toggle" data-herb="' + escapeAttr(h) + '" style="cursor:pointer;font-size:0.68rem;font-weight:200;color:#b0a99a;text-decoration:underline;">(' + toggleLabel + ')</span>'
-      + '</span>';
+    return '<span class="garden-herb-link" data-ing="' + escapeAttr(name) + '" style="' + nameStyle + '">' + escapeHtml(name) + '</span>';
   }).join('<span style="color:#9b9180;margin:0 4px;">·</span>');
   gardenListEl.querySelectorAll(".garden-herb-link").forEach(el => {
     el.addEventListener("click", () => resetNavAndOpen('item', el.dataset.ing));
   });
-  gardenListEl.querySelectorAll(".garden-herb-toggle").forEach(el => {
-    el.addEventListener("click", () => toggleGardenHerb(el.dataset.herb));
-  });
+  const gardenSettingsBtn = document.getElementById("garden-settings-btn");
+  if (gardenSettingsBtn && !gardenSettingsBtn._wired) {
+    gardenSettingsBtn._wired = true;
+    gardenSettingsBtn.addEventListener("click", e => { e.stopPropagation(); openGardenHerbSettings(); });
+  }
   
   // Calculate statuses for all meals
   const mealsWithStatus = MEALS.map(m => ({
@@ -4798,6 +4799,36 @@ function openItemLinkedMealsEdit(itemName) {
 // hides it (it stays a real key so old data isn't broken) while deleting a custom one
 // removes it outright. Either way, any items currently sitting in that section are
 // reassigned to a fallback so nothing gets orphaned.
+// Lets a herb be temporarily marked unavailable (heat, poor growing conditions, etc)
+// without deleting it from the garden. Kept in its own settings panel rather than as
+// inline controls next to every herb name, so the everyday "Fresh from the garden"
+// list stays a clean, quick-scanning list instead of a row of toggle links.
+function openGardenHerbSettings() {
+  let html = '<div class="recipe-detail" style="padding-top:6px;">';
+  html += '<div class="recipe-title" style="margin-bottom:6px;">Garden herbs</div>';
+  html += '<div style="font-weight:200;font-size:0.72rem;line-height:1.4;color:#9b9180;margin-bottom:20px;">Turn off a herb if it\'s not growing right now. A disabled herb stops counting as available until you turn it back on.</div>';
+  html += '<div id="ghs-list">';
+  GARDEN_HERBS.forEach(h => {
+    const name = h[0].toUpperCase() + h.slice(1);
+    const disabled = state.disabledGardenHerbs.includes(h);
+    html += '<div class="skipped-item" style="padding:11px 0;">';
+    html += '<span' + (disabled ? ' style="color:#9b9180;text-decoration:line-through;"' : '') + '>' + escapeHtml(name) + '</span>';
+    html += '<button class="ghs-toggle-btn" data-herb="' + escapeAttr(h) + '" style="background:' + (disabled ? '#efeae0' : '#d6ddb7') + ';border:none;border-radius:100px;padding:5px 14px;font-family:inherit;font-size:0.76rem;color:' + (disabled ? '#6b6557' : '#4d5a2e') + ';cursor:pointer;">' + (disabled ? 'Disabled' : 'Enabled') + '</button>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  document.getElementById("item-panel-body").innerHTML = html;
+  document.getElementById("item-panel-overlay").classList.add("open");
+
+  document.getElementById("ghs-list").querySelectorAll(".ghs-toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      toggleGardenHerb(btn.dataset.herb);
+      openGardenHerbSettings();
+    });
+  });
+}
+
 function openManageCategories(kind) {
   const isShopping = kind === "shopping";
   const title = isShopping ? "Shopping categories" : "Inventory locations";
