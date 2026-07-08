@@ -2430,16 +2430,25 @@ function deriveSlotsFromRecipeLine(lineRaw) {
   // Detect optional markers before stripping parentheticals
   let optional = /\(optional[^)]*\)/i.test(line) || /,\s*optional\s*$/i.test(line) || /\bif using\b/i.test(line);
 
-  // Explicit @recipe_key marker(s) -- optionally joined with " / " for alternatives,
-  // and optionally followed by " | note" (e.g. an amount that doesn't fit the marker
-  // itself). This is deliberately authored syntax, not natural-language prose, so it
-  // bypasses all the generic ingredient-text cleanup below entirely. That cleanup is
-  // tuned for prose and will otherwise eat a trailing "| note" through its "for
-  // dipping/frying/etc." stripping and leave a dangling, unmatched "|" behind.
+  // An explicit " | note" is authored syntax (an amount, a serving note, etc.) that
+  // should never be touched by the generic prose cleanup below -- that cleanup is
+  // tuned for natural language and includes rules that strip trailing "for
+  // serving"/"for dipping"/"to taste"/etc., which will happily eat the note's own
+  // wording and leave a dangling, unmatched "|" behind if the note isn't pulled out
+  // and protected first. Put back together at the very end, after cleanup, untouched.
+  let pipeNote = null;
   const pipeIdx = line.indexOf(' | ');
-  const beforePipe = pipeIdx !== -1 ? line.slice(0, pipeIdx).trim() : line;
-  if (/^@[a-z0-9_]+(\s*\/\s*@[a-z0-9_]+)*$/i.test(beforePipe)) {
-    const joined = beforePipe.split('/').map(s => s.trim()).join(' / ');
+  if (pipeIdx !== -1) {
+    pipeNote = line.slice(pipeIdx + 3).trim().replace(/\s*\(optional\)\s*$/i, '').trim();
+    line = line.slice(0, pipeIdx).trim();
+  }
+
+  // Explicit @recipe_key marker(s) -- optionally joined with " / " for alternatives.
+  // This is deliberately authored syntax, not natural-language prose, so it bypasses
+  // all the generic ingredient-text cleanup below entirely.
+  if (/^@[a-z0-9_]+(\s*\/\s*@[a-z0-9_]+)*$/i.test(line)) {
+    let joined = line.split('/').map(s => s.trim()).join(' / ');
+    if (pipeNote) joined += ' | ' + pipeNote;
     return [optional ? joined + ' (optional)' : joined];
   }
 
@@ -2522,6 +2531,7 @@ function deriveSlotsFromRecipeLine(lineRaw) {
     let joined = kept.map(capFirst).join(' / ');
     // "Salt and pepper" means both, tracked separately so each matches inventory
     joined = joined.replace(/^(kosher |sea |coarse )?salt (and|&) (freshly )?(ground |cracked |black )*pepper$/i, 'Salt + Pepper');
+    if (pipeNote) joined += ' | ' + pipeNote;
     results.push(optional ? joined + ' (optional)' : joined);
   });
   return results;
