@@ -4298,7 +4298,7 @@ function openMealDetail(mealName) {
           const { main: slotMain, note: slotNote } = splitIngredientNote(ing);
           const slotNotePill = slotNote ? `<span style="color:#9b9180;font-weight:200;margin-left:4px;">${renderTextWithBold(slotNote)}</span>` : '';
           const linksHtml = renderIngredientSlotHtml(slotMain, true, 1);
-          html += `<li style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px;">${linksHtml}${slotNotePill}${optionalPill}</li>`;
+          html += `<li style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${linksHtml}${slotNotePill}${optionalPill}</li>`;
         } else {
           const loc = findIngredientLocation(ing);
           let dot = '#b8ae9c';
@@ -4583,7 +4583,7 @@ function renderRecipeContent(recipe, clickableIngs = false, scale = 1, gardenHer
         return `<li>${text}${slotNotePill}${optionalPill}</li>`;
       }
       const linksHtml = renderIngredientSlotHtml(slotMain, true, scale);
-      return `<li style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px;">${linksHtml}${slotNotePill}${optionalPill}</li>`;
+      return `<li style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${linksHtml}${slotNotePill}${optionalPill}</li>`;
     }
     const scaled = scale !== 1 ? scaleIngredient(ingStr, scale) : ingStr;
     const display = formatFractions(scaled);
