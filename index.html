@@ -1229,7 +1229,7 @@ textarea.settings-input {
       </div>
       <div class="settings-row" id="edit-subcat-row" style="display:none;">
         <div class="settings-label">Subcategory</div>
-        <input type="text" class="settings-input" id="edit-item-subcat" placeholder="Subcategory (optional)">
+        <select class="settings-input" id="edit-item-subcat"></select>
       </div>
       <div class="settings-row" style="display:flex;gap:10px;margin-top:24px;">
         <button class="add-btn" id="edit-save-btn" style="flex:1;">Save</button>
@@ -1666,6 +1666,18 @@ function getSubcategory(item, location) {
   // is easier to notice and fix (via the subcategory field) than something silently
   // dumped in a catch-all bucket every time.
   return guessInventorySubcat(item, location);
+}
+
+// All subcategory names worth offering in the edit-item dropdown for a location: the
+// predefined ones from INVENTORY_SUBCATEGORIES, plus any custom subcategory names
+// already assigned to other items at that same location (since subcategories can be
+// freely named, not just picked from the predefined list).
+function getSubcategoryOptions(location) {
+  const names = new Set(Object.keys(INVENTORY_SUBCATEGORIES[location] || {}));
+  Object.entries(state.custom).forEach(([item, data]) => {
+    if (data && data.subcat && getLocation(item) === location) names.add(data.subcat);
+  });
+  return [...names].sort();
 }
 
 // Ordered keyword groups per inventory location, same pattern as SECTION_KEYWORD_GROUPS:
@@ -4039,16 +4051,19 @@ function renderInventory() {
 }
 
 function renderInventoryItem(item) {
-  const isGarden = GARDEN_HERBS.some(h => item.toLowerCase().startsWith(h));
-  if (isGarden) {
+  const matchedHerb = GARDEN_HERBS.find(h => item.toLowerCase().startsWith(h));
+  if (matchedHerb) {
     const ready = !item.toLowerCase().includes('not ready');
+    const disabled = state.disabledGardenHerbs.includes(matchedHerb);
+    const muted = !ready || disabled;
     return `
       <div class="list-item">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;">
           <span style="font-size:14px;">${ready ? '🌿' : '🌱'}</span>
         </span>
         <div class="list-item-info item-clickable" data-item="${escapeAttr(item)}" style="cursor:pointer;">
-          <div class="list-item-name" style="${ready ? '' : 'color:#9b9180;'}">${escapeHtml(capFirst(item))}</div>
+          <div class="list-item-name" style="${muted ? 'color:#9b9180;' : ''}${disabled ? 'text-decoration:line-through;' : ''}">${escapeHtml(capFirst(item))}</div>
+          ${disabled ? '<div style="font-size:0.66rem;font-weight:200;color:#9b9180;margin-top:2px;">Disabled</div>' : ''}
         </div>
       </div>
     `;
@@ -4631,7 +4646,9 @@ function renderRecipeContent(recipe, clickableIngs = false, scale = 1, gardenHer
     html += `<ul class="recipe-ingredients">`;
     gardenHerbs.forEach(herb => {
       const capHerb = herb[0].toUpperCase() + herb.slice(1);
-      const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#7a9940;margin-right:6px;flex-shrink:0;"></span>`;
+      const isDisabled = state.disabledGardenHerbs.includes(herb.toLowerCase());
+      const dotColor = isDisabled ? "#ddd6c5" : "#7a9940";
+      const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotColor};margin-right:6px;flex-shrink:0;"></span>`;
       if (!clickableIngs) {
         html += `<li style="display:flex;align-items:center;">${dot}${escapeHtml(capHerb)} (garden)</li>`;
       } else {
@@ -4768,6 +4785,15 @@ function openItemPanel(itemName) {
   let html = '<div class="recipe-detail" style="padding-top:6px;">';
   html += '<div style="margin-bottom:22px;display:flex;align-items:center;gap:8px;">' + inlineBackBtn + navBtn + '</div>';
   html += '<div class="recipe-title" style="margin-bottom:18px;">' + escapeHtml(itemName) + '</div>';
+
+  // If this only reads as "in inventory" through an alias substitute (e.g. "avocado
+  // oil" showing in stock because vegetable oil covers it) rather than being its own
+  // literal inventory item, say so. Otherwise it looks like a real inventory entry
+  // that should also turn up in an inventory search, and it won't, since it was never
+  // actually added as its own item.
+  if (loc && loc.viaAlias) {
+    html += '<div style="background:#f3ede1;border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:0.78rem;font-weight:200;color:#6b6557;line-height:1.4;">Not its own inventory item. Reads as in stock because <strong style="font-weight:400;">' + escapeHtml(loc.item) + '</strong> is stocked and works as a substitute.</div>';
+  }
 
   // Garden herb notes
   const herbKey = itemName.toLowerCase().replace(/\s*\(.*?\)/g, '').trim();
@@ -5163,10 +5189,45 @@ function openEditModal(itemName, context) {
 
     const sel = document.getElementById("edit-item-location");
     sel.innerHTML = INVENTORY_KEYS.filter(k => k !== "Garden").map(k => `<option value="${escapeAttr(k)}"${getLocation(itemName) === k ? " selected" : ""}>${escapeHtml(k)}</option>`).join("");
-    document.getElementById("edit-item-subcat").value = getSubcategory(itemName, getLocation(itemName)) || "";
+    populateSubcatDropdown(itemName, sel.value);
+    sel.removeEventListener("change", sel._subcatRefreshHandler);
+    sel._subcatRefreshHandler = () => populateSubcatDropdown(itemName, sel.value);
+    sel.addEventListener("change", sel._subcatRefreshHandler);
   }
 
   document.getElementById("edit-overlay").classList.add("open");
+}
+
+// The subcategory field is a dropdown (not free text) so picking an existing
+// subcategory doesn't require remembering/retyping its exact name. Still preserves the
+// ability to create a brand-new one via the "+ New subcategory..." option, and always
+// includes a blank "No subcategory" choice.
+function populateSubcatDropdown(itemName, location) {
+  const subcatSel = document.getElementById("edit-item-subcat");
+  const current = getSubcategory(itemName, location) || "";
+  const options = getSubcategoryOptions(location);
+  if (current && !options.includes(current)) options.push(current);
+  options.sort();
+  subcatSel.innerHTML = '<option value="">No subcategory</option>' +
+    options.map(c => `<option value="${escapeAttr(c)}"${current === c ? " selected" : ""}>${escapeHtml(c)}</option>`).join("") +
+    '<option value="__new__">+ New subcategory...</option>';
+  subcatSel.removeEventListener("change", subcatSel._newCatHandler);
+  subcatSel._newCatHandler = () => {
+    if (subcatSel.value === "__new__") {
+      const name = prompt("New subcategory name:");
+      if (name && name.trim()) {
+        const trimmedName = name.trim();
+        const opt = document.createElement("option");
+        opt.value = trimmedName;
+        opt.textContent = trimmedName;
+        opt.selected = true;
+        subcatSel.insertBefore(opt, subcatSel.lastElementChild);
+      } else {
+        subcatSel.value = current;
+      }
+    }
+  };
+  subcatSel.addEventListener("change", subcatSel._newCatHandler);
 }
 
 async function saveEditModal() {
