@@ -4201,7 +4201,11 @@ function openMealDetail(mealName) {
   const optionalMissingRaw = statusInfo.optionalMissing || [];
   const optionalMissingHtml = optionalMissingRaw.map(m => {
     const stripped = stripOptionalTag(m);
-    if (stripped.includes(' / ') || stripped.includes(' + ')) return renderIngredientSlotHtml(stripped, true, 1);
+    if (stripped.includes(' / ') || stripped.includes(' + ')) {
+      const { main: slotMain, note: slotNote } = splitIngredientNote(stripped);
+      const notePill = slotNote ? ` <span style="color:#9b9180;font-weight:200;">${renderTextWithBold(slotNote)}</span>` : '';
+      return renderIngredientSlotHtml(slotMain, true, 1) + notePill;
+    }
     const subKey = parseSubRecipeRef(stripped);
     if (subKey) {
       const title = escapeHtml(getSubRecipeTitle(subKey));
@@ -4229,7 +4233,9 @@ function openMealDetail(mealName) {
     });
     html += `<div class="meal-detail-needs"><div class="meal-detail-needs-label">Missing</div><div class="meal-detail-needs-list">${missing.map(m => {
       if (m.includes(' / ') || m.includes(' + ')) {
-        return renderIngredientSlotHtml(m, true, 1);
+        const { main: slotMain, note: slotNote } = splitIngredientNote(m);
+        const notePill = slotNote ? ` <span style="color:#9b9180;font-weight:200;">${renderTextWithBold(slotNote)}</span>` : '';
+        return renderIngredientSlotHtml(slotMain, true, 1) + notePill;
       }
       const subKey = parseSubRecipeRef(m);
       if (subKey) {
